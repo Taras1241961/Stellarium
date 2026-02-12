@@ -1,0 +1,79 @@
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+### Maven ###
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+### Gradle ###
+.gradle/
+build/
+
+### Java ###
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+
+### OS ###
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+### Logs ###
+*.log
+logs/
+
+### Temp ###
+*.tmp
+*.temp
+
+### Project specific ###
+# Файлы с данными (если они большие)
+*.dat
+*.bin
+# Кэши
+.cache/
+# Настройки среды
+.env
+config/local.properties
+
+### Compiled source ###
+*.com
+*.exe
+*.dll
+*.so
+*.dylib
+
+### Packages ###
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+### IDE ###
+.vscode/
+*.swp
+*.swo
+*~
