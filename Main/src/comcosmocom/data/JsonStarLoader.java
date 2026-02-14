@@ -1,11 +1,10 @@
-package comcosmocom.data;
+package src.comcosmocom.data;
 
-import comcosmocom.model.Star;
-import comcosmocom.model.StarCatalogJson;
-import comcosmocom.model.StarData;
+import src.comcosmocom.model.Star;
+import src.comcosmocom.model.StarCatalogJson;
+import src.comcosmocom.model.StarData;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.*;
-import java.nio.file.*;
 import java.util.*;
 
 public class JsonStarLoader {

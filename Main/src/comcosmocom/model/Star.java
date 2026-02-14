@@ -1,4 +1,4 @@
-package comcosmocom.model;
+package src.comcosmocom.model;
 
 import java.awt.Color;
 

@@ -3,7 +3,6 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/Stellarium.iml" filepath="$PROJECT_DIR$/Stellarium.iml" />
-      <module fileurl="file://$PROJECT_DIR$/Main/0/assets.iml" filepath="$PROJECT_DIR$/Main/0/assets.iml" />
     </modules>
   </component>
 </project>

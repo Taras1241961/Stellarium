@@ -1,6 +1,5 @@
-package comcosmocom.main;
-
-import comcosmocom.gui.StarSpherePanel;
+package src.comcosmocom.main;
+import src.comcosmocom.gui.StarSpherePanel;
 import javax.swing.*;
 import java.awt.*;
 

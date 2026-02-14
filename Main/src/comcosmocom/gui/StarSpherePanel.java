@@ -1,7 +1,7 @@
-package comcosmocom.gui;
+package src.comcosmocom.gui;
 
-import comcosmocom.data.JsonStarLoader;
-import comcosmocom.model.Star;
+import src.comcosmocom.data.JsonStarLoader;
+import src.comcosmocom.model.Star;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -24,7 +24,7 @@ public class StarSpherePanel extends JPanel {
 
         JsonStarLoader loader = new JsonStarLoader();
         try {
-            loader.loadJsonStars("resources/data/stars.8.json");
+            loader.loadJsonStars("data/stars.8.json");
             stars = loader.getStars();
             loadConstellationLines("resources/data/constellationship.fab", loader.getHipToStarMap());
         } catch (IOException e) {
