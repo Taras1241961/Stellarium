@@ -1,23 +1,32 @@
 package comcosmocom.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+// Игнорируем неизвестные поля, включая "id"
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class StarData {
 
     @JsonProperty("type")
     private String type;
 
+    @JsonProperty("id")
+    private String id;  // ← ДОБАВЛЯЕМ ЭТО ПОЛЕ
+
     private Geometry geometry;
     private Properties properties;
 
     // Геттеры и сеттеры
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
+
     public Geometry getGeometry() { return geometry; }
     public void setGeometry(Geometry geometry) { this.geometry = geometry; }
 
     public Properties getProperties() { return properties; }
     public void setProperties(Properties properties) { this.properties = properties; }
 
-    // Вложенный класс Geometry
+    // Вложенный класс Geometry (без изменений)
     public static class Geometry {
         @JsonProperty("type")
         private String type;
@@ -31,20 +40,16 @@ public class StarData {
         public double[] getCoordinates() { return coordinates; }
         public void setCoordinates(double[] coordinates) { this.coordinates = coordinates; }
 
-        // Метод для получения RA в радианах
         public double getRightAscensionRad() {
-            // RA в часах (0-24) → радианы (0-2π)
             return coordinates[0] * (Math.PI / 12.0);
         }
 
-        // Метод для получения Dec в радианах
         public double getDeclinationRad() {
-            // Dec в градусах (-90 до +90) → радианы (-π/2 до +π/2)
             return coordinates[1] * (Math.PI / 180.0);
         }
     }
 
-    // Вложенный класс Properties
+    // Вложенный класс Properties (без изменений)
     public static class Properties {
         @JsonProperty("mag")
         private double magnitude; // звёздная величина

@@ -1,8 +1,10 @@
 package comcosmocom.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
+@JsonIgnoreProperties(ignoreUnknown = true)  // ← ДОБАВЛЯЕМ ЭТО
 public class StarCatalogJson {
 
     @JsonProperty("type")
@@ -17,7 +19,6 @@ public class StarCatalogJson {
     public List<StarData> getFeatures() { return features; }
     public void setFeatures(List<StarData> features) { this.features = features; }
 
-    // Метод для получения количества звёзд
     public int getStarCount() {
         return features != null ? features.size() : 0;
     }
