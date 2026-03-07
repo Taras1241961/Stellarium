@@ -1,7 +1,7 @@
 package src.comcosmocom.gui;
 
-import src.comcosmocom.data.JsonStarLoader;
-import src.comcosmocom.model.Star;
+import src.comcosmocom.data.HygLoader;
+import src.comcosmocom.model.HygStar;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -11,9 +11,9 @@ import java.util.*;
 import java.util.List;
 
 public class StarSpherePanel extends JPanel {
-    private List<Star> stars;
+    private List<HygStar> stars;
     private List<int[]> constellationLines = new ArrayList<>();
-    private Map<Star, double[]> starPositions = new HashMap<>();
+    private Map<HygStar, double[]> starPositions = new HashMap<>();
     private double viewAngleX = 0, viewAngleY = 0, fieldOfView = 60.0;
     private int lastMouseX, lastMouseY;
     private boolean showGrid = true, showConstellations = true, showLabels = true;
@@ -22,17 +22,21 @@ public class StarSpherePanel extends JPanel {
         setBackground(Color.BLACK);
         setPreferredSize(new Dimension(1200, 900));
 
-        JsonStarLoader loader = new JsonStarLoader();
         try {
-            loader.loadJsonStars("data/stars.8.json");
+            HygLoader loader = new HygLoader();
+            loader.loadHygData("hygdata_v3.csv");
             stars = loader.getStars();
-            loadConstellationLines("resources/data/constellationship.fab", loader.getHipToStarMap());
-        } catch (IOException e) {
+            loadConstellationLines("constellationship.fab", loader.getHipMap());
+
+            System.out.println("Готово! Звёзд: " + stars.size() + ", линий: " + constellationLines.size());
+
+        } catch (Exception e) {
             e.printStackTrace();
             stars = new ArrayList<>();
-            JOptionPane.showMessageDialog(this, "Ошибка загрузки данных: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "Ошибка: " + e.getMessage());
         }
 
+        // Управление мышью
         addMouseListener(new MouseAdapter() {
             public void mousePressed(MouseEvent e) {
                 lastMouseX = e.getX();
@@ -44,10 +48,14 @@ public class StarSpherePanel extends JPanel {
             public void mouseDragged(MouseEvent e) {
                 int dx = e.getX() - lastMouseX;
                 int dy = e.getY() - lastMouseY;
-                viewAngleX += dx * 0.3;
-                viewAngleY += dy * 0.3;
+
+                // Инвертированное управление: мышь вправо - небо влево
+                viewAngleX -= dx * 0.3;
+                viewAngleY -= dy * 0.3;
+
                 if (viewAngleY > 90) viewAngleY = 90;
                 if (viewAngleY < -90) viewAngleY = -90;
+
                 lastMouseX = e.getX();
                 lastMouseY = e.getY();
                 repaint();
@@ -79,12 +87,16 @@ public class StarSpherePanel extends JPanel {
         setFocusable(true);
     }
 
-    private void loadConstellationLines(String filename, Map<Integer, Star> hipToStarMap) {
+    private void loadConstellationLines(String filename, Map<Integer, HygStar> hipMap) {
         constellationLines.clear();
         try {
             List<String> lines = Files.readAllLines(Paths.get(filename));
+            int lineCount = 0;
+            int connectionCount = 0;
+
             for (String line : lines) {
                 if (line.trim().isEmpty() || line.startsWith("#")) continue;
+
                 String[] parts = line.trim().split("\\s+");
                 if (parts.length < 3) continue;
 
@@ -94,28 +106,58 @@ public class StarSpherePanel extends JPanel {
                         hipIds.add(Integer.parseInt(parts[i]));
                     } catch (NumberFormatException ignored) {}
                 }
-                for (int j = 0; j < hipIds.size() - 1; j++) {
-                    Star star1 = hipToStarMap.get(hipIds.get(j));
-                    Star star2 = hipToStarMap.get(hipIds.get(j + 1));
+
+                // Соединяем последовательные звёзды
+                for (int i = 0; i < hipIds.size() - 1; i++) {
+                    int hip1 = hipIds.get(i);
+                    int hip2 = hipIds.get(i + 1);
+
+                    HygStar star1 = hipMap.get(hip1);
+                    HygStar star2 = hipMap.get(hip2);
+
                     if (star1 != null && star2 != null) {
                         constellationLines.add(new int[]{star1.getId(), star2.getId()});
+                        connectionCount++;
                     }
                 }
+                lineCount++;
             }
-            System.out.println("Загружено линий созвездий: " + constellationLines.size());
-        } catch (IOException e) {
-            System.err.println("Не удалось загрузить созвездия: " + e.getMessage());
+
+            System.out.println("Созвездий в файле: " + lineCount);
+            System.out.println("Реальных соединений: " + connectionCount);
+
+        } catch (Exception e) {
+            System.out.println("Ошибка загрузки созвездий: " + e.getMessage());
         }
     }
 
     private double[] projectToScreen(double x, double y, double z, int cx, int cy, double scale) {
-        double cosX = Math.cos(Math.toRadians(viewAngleX)), sinX = Math.sin(Math.toRadians(viewAngleX));
-        double cosY = Math.cos(Math.toRadians(viewAngleY)), sinY = Math.sin(Math.toRadians(viewAngleY));
-        double x1 = x * cosX - z * sinX, z1 = x * sinX + z * cosX, y1 = y;
-        double x2 = x1, y2 = y1 * cosY - z1 * sinY, z2 = y1 * sinY + z1 * cosY;
+        double cosX = Math.cos(Math.toRadians(viewAngleX));
+        double sinX = Math.sin(Math.toRadians(viewAngleX));
+        double cosY = Math.cos(Math.toRadians(viewAngleY));
+        double sinY = Math.sin(Math.toRadians(viewAngleY));
+
+        // Поворот камеры
+        double x1 = x * cosX - z * sinX;
+        double z1 = x * sinX + z * cosX;
+        double y1 = y;
+
+        double x2 = x1;
+        double y2 = y1 * cosY - z1 * sinY;
+        double z2 = y1 * sinY + z1 * cosY;
+
         if (z2 <= 0) return null;
-        double dist = scale / Math.tan(Math.toRadians(fieldOfView) / 2);
-        return new double[]{cx + (x2 * dist) / z2, cy - (y2 * dist) / z2, z2};
+
+        // Стереографическая проекция (эффект "рыбьего глаза")
+        double dist = scale * 1.5;
+
+        double theta = Math.acos(z2 / Math.sqrt(x2*x2 + y2*y2 + z2*z2));
+        double r = 2 * dist * Math.tan(theta / 2);
+
+        double screenX = cx + (x2 / Math.sqrt(x2*x2 + y2*y2)) * r;
+        double screenY = cy - (y2 / Math.sqrt(x2*x2 + y2*y2)) * r;
+
+        return new double[]{screenX, screenY, z2};
     }
 
     @Override
@@ -124,98 +166,107 @@ public class StarSpherePanel extends JPanel {
         Graphics2D g2d = (Graphics2D) g;
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        int cx = getWidth() / 2, cy = getHeight() / 2;
+        int cx = getWidth() / 2;
+        int cy = getHeight() / 2;
         double scale = Math.min(getWidth(), getHeight()) * 0.8;
 
         starPositions.clear();
 
-        for (Star star : stars) {
-            double ra = star.getRightAscension(), dec = star.getDeclination();
-            double x = Math.cos(dec) * Math.cos(ra), y = Math.cos(dec) * Math.sin(ra), z = Math.sin(dec);
+        // Рисуем звёзды с учётом яркости
+        for (HygStar star : stars) {
+            double x = Math.cos(star.getDec()) * Math.cos(star.getRa());
+            double y = Math.cos(star.getDec()) * Math.sin(star.getRa());
+            double z = Math.sin(star.getDec());
+
             double[] sp = projectToScreen(x, y, z, cx, cy, scale);
-            if (sp != null) {
+
+            if (sp != null && sp[2] > 0) {
                 starPositions.put(star, sp);
-                double size = Math.max(2, 10 - star.getMagnitude() * 0.8);
-                g2d.setColor(star.getColor());
-                g2d.fillOval((int)sp[0] - (int)size/2, (int)sp[1] - (int)size/2, (int)size, (int)size);
-                if (showLabels) {
+
+                double mag = star.getMag();
+
+                // Размер в зависимости от яркости
+                double size;
+                if (mag < 1.0) size = 6.0;
+                else if (mag < 2.0) size = 4.0;
+                else if (mag < 3.0) size = 3.0;
+                else if (mag < 4.0) size = 2.0;
+                else if (mag < 5.0) size = 1.5;
+                else size = 1.0;
+
+                // Прозрачность в зависимости от яркости
+                int alpha;
+                if (mag < 1.0) alpha = 255;
+                else if (mag < 2.0) alpha = 220;
+                else if (mag < 3.0) alpha = 180;
+                else if (mag < 4.0) alpha = 140;
+                else if (mag < 5.0) alpha = 100;
+                else alpha = 60;
+
+                Color starColor = star.getColor();
+                g2d.setColor(new Color(
+                        starColor.getRed(),
+                        starColor.getGreen(),
+                        starColor.getBlue(),
+                        alpha
+                ));
+
+                g2d.fillOval((int)sp[0] - (int)size/2, (int)sp[1] - (int)size/2,
+                        (int)size, (int)size);
+
+                // Названия только для ярких звёзд
+                if (showLabels && mag < 2.0 && !star.getName().isEmpty()) {
                     g2d.setColor(Color.WHITE);
                     g2d.setFont(new Font("Arial", Font.PLAIN, 11));
-                    g2d.drawString(String.format("HIP%d", star.getId()), (int)sp[0] + 5, (int)sp[1] - 5);
+                    g2d.drawString(star.getName(), (int)sp[0] + 5, (int)sp[1] - 5);
                 }
             }
         }
 
+        // Рисуем линии созвездий
         if (showConstellations) {
-            g2d.setColor(new Color(100, 200, 255, 150));
             g2d.setStroke(new BasicStroke(1.2f));
+
             for (int[] line : constellationLines) {
-                if (line.length >= 2 && line[0] < stars.size() && line[1] < stars.size()) {
-                    Star s1 = stars.get(line[0]);
-                    Star s2 = stars.get(line[1]);
-                    double[] p1 = starPositions.get(s1);
-                    double[] p2 = starPositions.get(s2);
-                    if (p1 != null && p2 != null) {
-                        g2d.drawLine((int)p1[0], (int)p1[1], (int)p2[0], (int)p2[1]);
+                HygStar s1 = stars.get(line[0]);
+                HygStar s2 = stars.get(line[1]);
+
+                double[] p1 = starPositions.get(s1);
+                double[] p2 = starPositions.get(s2);
+
+                if (p1 != null && p2 != null && p1[2] > 0 && p2[2] > 0) {
+                    float alpha = 0.3f;
+                    if (s1.getMag() < 3.0 && s2.getMag() < 3.0) {
+                        alpha = 0.8f;
                     }
+                    g2d.setColor(new Color(100, 200, 255, (int)(alpha * 255)));
+                    g2d.drawLine((int)p1[0], (int)p1[1], (int)p2[0], (int)p2[1]);
                 }
             }
         }
 
-        drawInfo(g2d);
-    }
-
-    private void drawInfo(Graphics2D g2d) {
+        // Информация
         g2d.setColor(new Color(0, 0, 0, 180));
-        g2d.fillRect(10, 10, 400, 80);
+        g2d.fillRect(10, 10, 500, 100);
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Monospaced", Font.PLAIN, 12));
+
         int y = 30;
-        g2d.drawString(String.format("Звёзд: %d  Сетка: %s  Созвездия: %s  Подписи: %s",
-                stars.size(),
+        g2d.drawString(String.format("Звёзд: %d  Линий: %d  Сетка: %s  Созвездия: %s",
+                stars.size(), constellationLines.size(),
                 showGrid ? "Вкл" : "Выкл",
-                showConstellations ? "Вкл" : "Выкл",
-                showLabels ? "Вкл" : "Выкл"), 20, y);
+                showConstellations ? "Вкл" : "Выкл"), 20, y);
         y += 20;
         g2d.drawString("G-сетка, C-созвездия, L-подписи, Пробел-сброс", 20, y);
+        y += 20;
+        g2d.drawString("Управление: мышь - захват и поворот неба", 20, y);
     }
 
-    // === ВСЕ НЕОБХОДИМЫЕ ПУБЛИЧНЫЕ МЕТОДЫ ===
-    public void setGridVisible(boolean visible) {
-        showGrid = visible;
-        repaint();
-    }
-    public void setConstellationsVisible(boolean visible) {
-        showConstellations = visible;
-        repaint();
-    }
-
-    public void setLabelsVisible(boolean visible) {
-        showLabels = visible;
-        repaint();
-    }
-
-    public void resetView() {
-        viewAngleX = 0;
-        viewAngleY = 0;
-        fieldOfView = 60;
-        repaint();
-    }
-
-    public boolean isGridVisible() {
-        return showGrid;
-    }
-
-    public boolean isConstellationsVisible() {
-        return showConstellations;
-    }
-
-    public boolean isLabelsVisible() {
-        return showLabels;
-    }
-
-    public int getStarCount() {
-        return stars != null ? stars.size() : 0;
-    }
+    public void setGridVisible(boolean v) { showGrid = v; repaint(); }
+    public void setConstellationsVisible(boolean v) { showConstellations = v; repaint(); }
+    public void setLabelsVisible(boolean v) { showLabels = v; repaint(); }
+    public void resetView() { viewAngleX = 0; viewAngleY = 0; fieldOfView = 60; repaint(); }
+    public boolean isGridVisible() { return showGrid; }
+    public boolean isConstellationsVisible() { return showConstellations; }
+    public boolean isLabelsVisible() { return showLabels; }
 }
-

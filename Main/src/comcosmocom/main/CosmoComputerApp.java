@@ -1,4 +1,5 @@
 package src.comcosmocom.main;
+
 import src.comcosmocom.gui.StarSpherePanel;
 import javax.swing.*;
 import java.awt.*;
@@ -18,7 +19,6 @@ public class CosmoComputerApp {
             JPanel controlPanel = createControlPanel(starPanel);
             frame.add(controlPanel, BorderLayout.SOUTH);
 
-            frame.setJMenuBar(createMenuBar(starPanel));
             frame.setVisible(true);
         });
     }
@@ -45,28 +45,5 @@ public class CosmoComputerApp {
         panelControls.add(labelButton);
 
         return panelControls;
-    }
-
-    private static JMenuBar createMenuBar(StarSpherePanel panel) {
-        JMenuBar menuBar = new JMenuBar();
-
-        JMenu viewMenu = new JMenu("Вид");
-
-        JCheckBoxMenuItem gridItem = new JCheckBoxMenuItem("Сетка координат", panel.isGridVisible());
-        gridItem.addActionListener(e -> panel.setGridVisible(gridItem.isSelected()));
-
-        JCheckBoxMenuItem constItem = new JCheckBoxMenuItem("Созвездия", panel.isConstellationsVisible());
-        constItem.addActionListener(e -> panel.setConstellationsVisible(constItem.isSelected()));
-
-        JCheckBoxMenuItem labelItem = new JCheckBoxMenuItem("Подписи звёзд", panel.isLabelsVisible());
-        labelItem.addActionListener(e -> panel.setLabelsVisible(labelItem.isSelected()));
-
-        viewMenu.add(gridItem);
-        viewMenu.add(constItem);
-        viewMenu.add(labelItem);
-
-        menuBar.add(viewMenu);
-
-        return menuBar;
     }
 }

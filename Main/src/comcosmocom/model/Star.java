@@ -10,13 +10,13 @@ public class Star {
     private double magnitude;
     private double colorIndex;
 
-    public Star(int id, String name, double ra, double dec, double mag, double bv) {
+    public Star(int id, String name, double ra, double dec, double mag, double colorIndex) {
         this.id = id;
         this.name = name;
         this.rightAscension = ra;
         this.declination = dec;
         this.magnitude = mag;
-        this.colorIndex = bv;
+        this.colorIndex = colorIndex;
     }
 
     public int getId() { return id; }
@@ -33,5 +33,12 @@ public class Star {
         else if (colorIndex < 0.6) return new Color(255, 230, 150);
         else if (colorIndex < 1.0) return new Color(255, 200, 100);
         else return new Color(255, 150, 100);
+    }
+
+    public double[] getCartesianCoordinates(double sphereRadius) {
+        double x = sphereRadius * Math.cos(declination) * Math.cos(rightAscension);
+        double y = sphereRadius * Math.cos(declination) * Math.sin(rightAscension);
+        double z = sphereRadius * Math.sin(declination);
+        return new double[]{x, y, z};
     }
 }
