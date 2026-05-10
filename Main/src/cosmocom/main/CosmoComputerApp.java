@@ -58,18 +58,26 @@ public class CosmoComputerApp {
         panel.add(titleLabel);
         panel.add(Box.createVerticalStrut(10));
 
+        JPanel datePanel = new JPanel();
+        datePanel.setBackground(new Color(50, 50, 70));
+        datePanel.setMaximumSize(new Dimension(220, 30));
+        datePanel.setLayout(new FlowLayout());
         dateLabel = new JLabel("YYYY-MM-DD");
         dateLabel.setForeground(Color.CYAN);
         dateLabel.setFont(new Font("Monospaced", Font.BOLD, 14));
-        dateLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        panel.add(dateLabel);
+        datePanel.add(dateLabel);
+        panel.add(datePanel);
         panel.add(Box.createVerticalStrut(10));
 
+        JPanel timePanel = new JPanel();
+        timePanel.setBackground(new Color(50, 50, 70));
+        timePanel.setMaximumSize(new Dimension(220, 35));
+        timePanel.setLayout(new FlowLayout());
         timeLabel = new JLabel("HH:MM:SS");
         timeLabel.setForeground(Color.YELLOW);
         timeLabel.setFont(new Font("Monospaced", Font.BOLD, 18));
-        timeLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        panel.add(timeLabel);
+        timePanel.add(timeLabel);
+        panel.add(timePanel);
         panel.add(Box.createVerticalStrut(15));
 
         JSeparator sep1 = new JSeparator();
@@ -84,11 +92,15 @@ public class CosmoComputerApp {
         jdTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
         panel.add(jdTitle);
 
+        JPanel jdPanel = new JPanel();
+        jdPanel.setBackground(new Color(50, 50, 70));
+        jdPanel.setMaximumSize(new Dimension(220, 25));
+        jdPanel.setLayout(new FlowLayout());
         jdLabel = new JLabel("2450000.00000");
         jdLabel.setForeground(Color.GREEN);
         jdLabel.setFont(new Font("Monospaced", Font.PLAIN, 11));
-        jdLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        panel.add(jdLabel);
+        jdPanel.add(jdLabel);
+        panel.add(jdPanel);
         panel.add(Box.createVerticalStrut(15));
 
         JSeparator sep2 = new JSeparator();
@@ -104,30 +116,43 @@ public class CosmoComputerApp {
         panel.add(timeControlTitle);
         panel.add(Box.createVerticalStrut(10));
 
+        JPanel statusPanel = new JPanel();
+        statusPanel.setBackground(new Color(50, 50, 70));
+        statusPanel.setMaximumSize(new Dimension(220, 25));
+        statusPanel.setLayout(new FlowLayout());
         timeStatusLabel = new JLabel("Status: PAUSED");
         timeStatusLabel.setForeground(Color.RED);
         timeStatusLabel.setFont(new Font("Monospaced", Font.PLAIN, 10));
-        timeStatusLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        panel.add(timeStatusLabel);
+        statusPanel.add(timeStatusLabel);
+        panel.add(statusPanel);
         panel.add(Box.createVerticalStrut(5));
 
+        JPanel offsetPanel = new JPanel();
+        offsetPanel.setBackground(new Color(50, 50, 70));
+        offsetPanel.setMaximumSize(new Dimension(220, 25));
+        offsetPanel.setLayout(new FlowLayout());
         timeOffsetLabel = new JLabel("Offset: 0.0 days");
         timeOffsetLabel.setForeground(Color.CYAN);
         timeOffsetLabel.setFont(new Font("Monospaced", Font.PLAIN, 10));
-        timeOffsetLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        panel.add(timeOffsetLabel);
+        offsetPanel.add(timeOffsetLabel);
+        panel.add(offsetPanel);
         panel.add(Box.createVerticalStrut(5));
 
+        JPanel speedPanel = new JPanel();
+        speedPanel.setBackground(new Color(50, 50, 70));
+        speedPanel.setMaximumSize(new Dimension(220, 25));
+        speedPanel.setLayout(new FlowLayout());
         timeSpeedLabel = new JLabel("Speed: 1.0x");
         timeSpeedLabel.setForeground(Color.YELLOW);
         timeSpeedLabel.setFont(new Font("Monospaced", Font.PLAIN, 10));
-        timeSpeedLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        panel.add(timeSpeedLabel);
+        speedPanel.add(timeSpeedLabel);
+        panel.add(speedPanel);
         panel.add(Box.createVerticalStrut(10));
 
         JPanel buttonPanel = new JPanel();
         buttonPanel.setLayout(new GridLayout(6, 1, 5, 5));
-        buttonPanel.setBackground(new Color(0, 0, 0, 0));
+        buttonPanel.setBackground(new Color(30, 30, 50));
+        buttonPanel.setBorder(BorderFactory.createLineBorder(new Color(80, 80, 100), 1));
         buttonPanel.setMaximumSize(new Dimension(120, 200));
 
         JButton rewindFastBtn = new JButton("xBack");
@@ -208,7 +233,6 @@ public class CosmoComputerApp {
         resetViewBtn.addActionListener(e -> starPanel.resetView());
         panel.add(resetViewBtn);
 
-        // Кнопка Invert RA (добавлена обратно)
         JButton invertBtn = new JButton("Invert RA: ON");
         invertBtn.setBackground(new Color(50, 50, 80));
         invertBtn.setForeground(Color.WHITE);
@@ -298,6 +322,40 @@ public class CosmoComputerApp {
             eclipticBtn.setText(starPanel.isEclipticVisible() ? "Ecliptic: ON" : "Ecliptic: OFF");
         });
         panel.add(eclipticBtn);
+
+        JPanel searchPanel = new JPanel();
+        searchPanel.setBackground(new Color(30, 30, 50));
+        searchPanel.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(Color.ORANGE), "SEARCH",
+                TitledBorder.LEFT, TitledBorder.TOP, new Font("Arial", Font.BOLD, 10), Color.ORANGE));
+
+        JTextField searchField = new JTextField(15);
+        searchField.setBackground(new Color(50, 50, 70));
+        searchField.setForeground(Color.WHITE);
+        searchField.setCaretColor(Color.WHITE);
+        searchField.addActionListener(e -> starPanel.search(searchField.getText()));
+
+        JButton searchBtn = new JButton("Find");
+        searchBtn.setBackground(new Color(0, 100, 100));
+        searchBtn.setForeground(Color.WHITE);
+        searchBtn.addActionListener(e -> starPanel.search(searchField.getText()));
+
+        JButton prevSearchBtn = new JButton("Prev");
+        prevSearchBtn.setBackground(new Color(50, 50, 80));
+        prevSearchBtn.setForeground(Color.WHITE);
+        prevSearchBtn.addActionListener(e -> starPanel.previousSearchResult());
+
+        JButton nextSearchBtn = new JButton("Next");
+        nextSearchBtn.setBackground(new Color(50, 50, 80));
+        nextSearchBtn.setForeground(Color.WHITE);
+        nextSearchBtn.addActionListener(e -> starPanel.nextSearchResult());
+
+        searchPanel.add(searchField);
+        searchPanel.add(searchBtn);
+        searchPanel.add(prevSearchBtn);
+        searchPanel.add(nextSearchBtn);
+
+        panel.add(searchPanel);
 
         return panel;
     }

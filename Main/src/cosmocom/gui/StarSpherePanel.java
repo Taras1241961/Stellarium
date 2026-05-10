@@ -23,7 +23,10 @@ public class StarSpherePanel extends JPanel {
     private Map<PlanetData, double[]> planetScreenPositions = new HashMap<>();
     private boolean showPlanets = true;
 
-    private double viewAngleX = 0, viewAngleY = 0, fieldOfView = 60.0;
+    private static final double DEFAULT_RA = 0.0;
+    private static final double DEFAULT_DEC = 90.0;
+
+    private double viewAngleX = -DEFAULT_RA, viewAngleY = DEFAULT_DEC, fieldOfView = 60.0;
     private int lastMouseX, lastMouseY;
 
     private boolean showGrid = true, showConstellations = true, showLabels = true;
@@ -42,8 +45,29 @@ public class StarSpherePanel extends JPanel {
     private double moonRa = 0, moonDec = 0;
     private double moonIllumination = 0;
 
-    private double earthR = 1.0;
-    private double earthV = 29.8;
+    private List<SearchableObject> searchableObjects;
+    private List<SearchableObject> searchResults;
+    private SearchableObject selectedSearchResult = null;
+
+    private static class SearchableObject {
+        String name;
+        String type;
+        double ra;
+        double dec;
+        Object source;
+
+        SearchableObject(String name, String type, double ra, double dec, Object source) {
+            this.name = name;
+            this.type = type;
+            this.ra = ra;
+            this.dec = dec;
+            this.source = source;
+        }
+
+        String getDisplayName() {
+            return type + ": " + name;
+        }
+    }
 
     public StarSpherePanel() {
         setBackground(Color.BLACK);
@@ -51,6 +75,7 @@ public class StarSpherePanel extends JPanel {
 
         loadAstronomicalData();
         initPlanets();
+        initSearchableObjects();
         setupMouseControls();
         setupKeyboardControls();
         setupTimeTimer();
@@ -61,6 +86,9 @@ public class StarSpherePanel extends JPanel {
             repaint();
         });
         messageTimer.setRepeats(false);
+
+        viewAngleX = -DEFAULT_RA;
+        viewAngleY = DEFAULT_DEC;
     }
 
     private void initPlanets() {
@@ -94,10 +122,166 @@ public class StarSpherePanel extends JPanel {
 
             System.out.println("Loaded: stars=" + stars.size() + ", lines=" + constellationLines.size() +
                     ", boundaries=" + boundaryPoints.size() + ", messier=" + messierObjects.size());
+
         } catch (Exception e) {
             e.printStackTrace();
             stars = new ArrayList<>();
             messierObjects = new ArrayList<>();
+        }
+    }
+
+    private void initSearchableObjects() {
+        searchableObjects = new ArrayList<>();
+
+        searchableObjects.add(new SearchableObject("Sun", "Star", sunRa, sunDec, null));
+        searchableObjects.add(new SearchableObject("Moon", "Moon", moonRa, moonDec, null));
+
+        if (stars != null) {
+            for (HygStar star : stars) {
+                if (star.getName() != null && !star.getName().isEmpty()) {
+                    searchableObjects.add(new SearchableObject(
+                            star.getName(), "Star", star.getRa(), star.getDec(), star));
+                }
+            }
+        }
+
+        if (planets != null) {
+            for (PlanetData planet : planets) {
+                searchableObjects.add(new SearchableObject(
+                        planet.getName(), "Planet", planet.getRa(), planet.getDec(), planet));
+            }
+        }
+
+        if (messierObjects != null) {
+            for (MessierObject obj : messierObjects) {
+                searchableObjects.add(new SearchableObject(
+                        "M" + obj.getNumber() + " " + obj.getName(), "Messier",
+                        obj.getRa(), obj.getDec(), obj));
+            }
+        }
+
+        System.out.println("Searchable objects: " + searchableObjects.size());
+    }
+
+    private List<SearchableObject> searchObjects(String searchText) {
+        if (searchText == null || searchText.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        String lowerSearch = searchText.toLowerCase().trim();
+        List<SearchableObject> results = new ArrayList<>();
+
+        for (SearchableObject obj : searchableObjects) {
+            if (obj.name.toLowerCase().contains(lowerSearch)) {
+                results.add(obj);
+            }
+        }
+
+        results.sort((a, b) -> {
+            boolean aExact = a.name.equalsIgnoreCase(lowerSearch);
+            boolean bExact = b.name.equalsIgnoreCase(lowerSearch);
+            if (aExact && !bExact) return -1;
+            if (!aExact && bExact) return 1;
+            return a.name.compareTo(b.name);
+        });
+
+        return results;
+    }
+
+    public void search(String searchText) {
+        updateSunPosition();
+        updateMoonPosition();
+        updatePlanetPositions();
+
+        for (SearchableObject obj : searchableObjects) {
+            if (obj.name.equals("Sun")) {
+                obj.ra = sunRa;
+                obj.dec = sunDec;
+            } else if (obj.name.equals("Moon")) {
+                obj.ra = moonRa;
+                obj.dec = moonDec;
+            } else if (obj.type.equals("Planet") && obj.source != null) {
+                PlanetData planet = (PlanetData) obj.source;
+                obj.ra = planet.getRa();
+                obj.dec = planet.getDec();
+            } else if (obj.type.equals("Star") && obj.source != null) {
+                HygStar star = (HygStar) obj.source;
+                obj.ra = star.getRa();
+                obj.dec = star.getDec();
+            } else if (obj.type.equals("Messier") && obj.source != null) {
+                MessierObject mess = (MessierObject) obj.source;
+                obj.ra = mess.getRa();
+                obj.dec = mess.getDec();
+            }
+        }
+
+        this.searchResults = searchObjects(searchText);
+        if (!searchResults.isEmpty()) {
+            selectSearchResult(0);
+        } else {
+            selectedSearchResult = null;
+            selectedObjectName = "Not found: " + searchText;
+            if (messageTimer.isRunning()) messageTimer.stop();
+            messageTimer.start();
+            repaint();
+        }
+    }
+
+    public void selectSearchResult(int index) {
+        if (searchResults != null && index >= 0 && index < searchResults.size()) {
+            selectedSearchResult = searchResults.get(index);
+
+            if (selectedSearchResult.type.equals("Star") && selectedSearchResult.source != null) {
+                HygStar star = (HygStar) selectedSearchResult.source;
+                selectedSearchResult.ra = star.getRa();
+                selectedSearchResult.dec = star.getDec();
+            } else if (selectedSearchResult.type.equals("Planet") && selectedSearchResult.source != null) {
+                PlanetData planet = (PlanetData) selectedSearchResult.source;
+                selectedSearchResult.ra = planet.getRa();
+                selectedSearchResult.dec = planet.getDec();
+            } else if (selectedSearchResult.type.equals("Messier") && selectedSearchResult.source != null) {
+                MessierObject obj = (MessierObject) selectedSearchResult.source;
+                selectedSearchResult.ra = obj.getRa();
+                selectedSearchResult.dec = obj.getDec();
+            } else if (selectedSearchResult.name.equals("Sun")) {
+                selectedSearchResult.ra = sunRa;
+                selectedSearchResult.dec = sunDec;
+            } else if (selectedSearchResult.name.equals("Moon")) {
+                selectedSearchResult.ra = moonRa;
+                selectedSearchResult.dec = moonDec;
+            }
+
+            double targetRaDeg = Math.toDegrees(selectedSearchResult.ra);
+            double targetDecDeg = Math.toDegrees(selectedSearchResult.dec);
+
+            viewAngleY = targetDecDeg;
+            viewAngleX = targetRaDeg;
+
+            repaint();
+
+            selectedObjectName = String.format("Found: %s (RA: %.2f h, Dec: %.2f°)",
+                    selectedSearchResult.getDisplayName(),
+                    selectedSearchResult.ra * 12 / Math.PI,
+                    Math.toDegrees(selectedSearchResult.dec));
+            if (messageTimer.isRunning()) messageTimer.stop();
+            messageTimer.start();
+            repaint();
+        }
+    }
+
+    public void nextSearchResult() {
+        if (searchResults != null && !searchResults.isEmpty()) {
+            int currentIndex = searchResults.indexOf(selectedSearchResult);
+            int nextIndex = (currentIndex + 1) % searchResults.size();
+            selectSearchResult(nextIndex);
+        }
+    }
+
+    public void previousSearchResult() {
+        if (searchResults != null && !searchResults.isEmpty()) {
+            int currentIndex = searchResults.indexOf(selectedSearchResult);
+            int prevIndex = (currentIndex - 1 + searchResults.size()) % searchResults.size();
+            selectSearchResult(prevIndex);
         }
     }
 
@@ -130,7 +314,7 @@ public class StarSpherePanel extends JPanel {
                 int dx = e.getX() - lastMouseX;
                 int dy = e.getY() - lastMouseY;
                 viewAngleX += dx * 0.5;
-                viewAngleY += dy * 0.5;
+                viewAngleY -= dy * 0.5;
                 if (viewAngleY > 90) viewAngleY = 90;
                 if (viewAngleY < -90) viewAngleY = -90;
                 lastMouseX = e.getX();
@@ -152,9 +336,9 @@ public class StarSpherePanel extends JPanel {
                 switch (e.getKeyCode()) {
                     case KeyEvent.VK_LEFT: viewAngleX -= 5; break;
                     case KeyEvent.VK_RIGHT: viewAngleX += 5; break;
-                    case KeyEvent.VK_UP: viewAngleY -= 5; break;
-                    case KeyEvent.VK_DOWN: viewAngleY += 5; break;
-                    case KeyEvent.VK_SPACE: viewAngleX = 0; viewAngleY = 0; fieldOfView = 60; break;
+                    case KeyEvent.VK_UP: viewAngleY += 5; break;
+                    case KeyEvent.VK_DOWN: viewAngleY -= 5; break;
+                    case KeyEvent.VK_SPACE: viewAngleX = -DEFAULT_RA; viewAngleY = DEFAULT_DEC; fieldOfView = 60; break;
                     case KeyEvent.VK_G: showGrid = !showGrid; repaint(); break;
                     case KeyEvent.VK_C: showConstellations = !showConstellations; repaint(); break;
                     case KeyEvent.VK_B: showBoundaries = !showBoundaries; repaint(); break;
@@ -462,14 +646,14 @@ public class StarSpherePanel extends JPanel {
 
     private void drawEcliptic(Graphics2D g2d, int cx, int cy) {
         double epsilon = Math.toRadians(23.44);
-        g2d.setColor(new Color(255, 215, 0, 150));
+        g2d.setColor(new Color(255, 215, 0, 200));
         g2d.setStroke(new BasicStroke(1.5f));
 
         int prevX = -1, prevY = -1;
         for (int lambdaDeg = 0; lambdaDeg <= 360; lambdaDeg += 5) {
             double lambda = Math.toRadians(lambdaDeg);
             double ra = Math.atan2(Math.cos(epsilon) * Math.sin(lambda), Math.cos(lambda));
-            double dec = Math.asin(Math.sin(epsilon) * Math.sin(lambda));
+            double dec = -Math.asin(Math.sin(epsilon) * Math.sin(lambda));
             if (ra < 0) ra += 2 * Math.PI;
 
             double x = Math.cos(dec) * Math.cos(ra);
@@ -534,6 +718,22 @@ public class StarSpherePanel extends JPanel {
         if (showSun) drawSun(g2d, cx, cy);
         if (showMoon) drawMoon(g2d, cx, cy);
         if (showGrid) drawGrid(g2d, cx, cy);
+
+        if (selectedSearchResult != null) {
+            double ra = invertRA ? -selectedSearchResult.ra : selectedSearchResult.ra;
+            double dec = selectedSearchResult.dec;
+            double x = Math.cos(dec) * Math.cos(ra);
+            double y = Math.cos(dec) * Math.sin(ra);
+            double z = Math.sin(dec);
+            double[] sp = projectToScreen(x, y, z, cx, cy);
+            if (sp != null && sp[2] > 0) {
+                g2d.setColor(new Color(255, 100, 100, 200));
+                g2d.setStroke(new BasicStroke(3.0f));
+                g2d.drawOval((int) sp[0] - 15, (int) sp[1] - 15, 30, 30);
+                g2d.setColor(Color.YELLOW);
+            }
+        }
+
         drawInfoPanel(g2d);
 
         if (selectedObjectName != null) {
@@ -574,8 +774,16 @@ public class StarSpherePanel extends JPanel {
         double[] sunPos = getSunScreenPosition(cx, cy);
         if (sunPos != null && sunPos[2] > 0) {
             double zoomFactor = 60.0 / fieldOfView;
-            int size = (int)(12 * Math.sqrt(zoomFactor));
-            size = Math.max(8, Math.min(20, size));
+            int size = (int)(14 * Math.sqrt(zoomFactor));
+            size = Math.max(10, Math.min(24, size));
+
+            RadialGradientPaint sunGlow = new RadialGradientPaint(
+                    (float) sunPos[0], (float) sunPos[1], size,
+                    new float[]{0f, 0.5f, 1f},
+                    new Color[]{new Color(255, 255, 200, 200), new Color(255, 200, 100, 100), new Color(255, 200, 100, 0)}
+            );
+            g2d.setPaint(sunGlow);
+            g2d.fillOval((int) sunPos[0] - size, (int) sunPos[1] - size, size * 2, size * 2);
 
             g2d.setColor(new Color(255, 220, 100));
             g2d.fillOval((int) sunPos[0] - size / 2, (int) sunPos[1] - size / 2, size, size);
@@ -586,13 +794,26 @@ public class StarSpherePanel extends JPanel {
         double[] moonPos = getMoonScreenPosition(cx, cy);
         if (moonPos != null && moonPos[2] > 0) {
             double zoomFactor = 60.0 / fieldOfView;
-            int size = (int)(8 * Math.sqrt(zoomFactor));
-            size = Math.max(5, Math.min(12, size));
+            int size = (int)(10 * Math.sqrt(zoomFactor));
+            size = Math.max(6, Math.min(16, size));
 
             g2d.setColor(new Color(220, 220, 220));
             g2d.fillOval((int) moonPos[0] - size / 2, (int) moonPos[1] - size / 2, size, size);
+
+            if (moonIllumination < 0.99 && moonIllumination > 0.01) {
+                int shadowWidth = (int)(size * (1 - moonIllumination));
+                g2d.setColor(new Color(60, 60, 80));
+                g2d.fillOval((int) moonPos[0] - size / 2, (int) moonPos[1] - size / 2, shadowWidth, size);
+            }
+
             g2d.setColor(Color.WHITE);
             g2d.drawOval((int) moonPos[0] - size / 2, (int) moonPos[1] - size / 2, size, size);
+
+            if (showLabels) {
+                g2d.setColor(Color.LIGHT_GRAY);
+                g2d.setFont(new Font("Arial", Font.PLAIN, 10));
+                g2d.drawString("Moon", (int) moonPos[0] + size + 3, (int) moonPos[1] - 3);
+            }
         }
     }
 
@@ -847,6 +1068,7 @@ public class StarSpherePanel extends JPanel {
 
         g2d.setColor(new Color(150, 200, 255, 200));
         g2d.setFont(new Font("Monospaced", Font.PLAIN, 9));
+
         for (int raHour = 0; raHour < 24; raHour++) {
             double raRad = Math.toRadians(raHour * 15);
             double dec = 0;
@@ -854,7 +1076,8 @@ public class StarSpherePanel extends JPanel {
                     Math.cos(dec) * Math.sin(raRad),
                     Math.sin(dec), cx, cy);
             if (sp != null && sp[2] > 0) {
-                g2d.drawString(raHour + "h", (int) sp[0] + 3, (int) sp[1] + 5);
+                int displayHour = (24 - raHour) % 24;
+                g2d.drawString(displayHour + "h", (int) sp[0] + 3, (int) sp[1] + 5);
             }
         }
 
@@ -874,7 +1097,7 @@ public class StarSpherePanel extends JPanel {
 
     private void drawInfoPanel(Graphics2D g2d) {
         g2d.setColor(new Color(0, 0, 0, 200));
-        g2d.fillRect(10, 10, 360, 80);
+        g2d.fillRect(10, 10, 450, 130);
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Monospaced", Font.PLAIN, 12));
 
@@ -886,7 +1109,12 @@ public class StarSpherePanel extends JPanel {
         y += 20;
         g2d.drawString(String.format("Sun: RA=%.2f h | Dec=%.2f°", sunRa * 12 / Math.PI, Math.toDegrees(sunDec)), 20, y);
         y += 20;
-        g2d.drawString(String.format("Zoom limit: %.1fm | Zoom: %.0f°", magnitudeLimit, fieldOfView), 20, y);
+        g2d.drawString(String.format("Zoom: %.0f° | Limit: %.1fm", fieldOfView, magnitudeLimit), 20, y);
+        y += 20;
+        g2d.drawString(String.format("Invert RA: %s | Ecliptic: %s", invertRA ? "ON" : "OFF", showEcliptic ? "ON" : "OFF"), 20, y);
+        y += 20;
+        g2d.drawString(String.format("Center: RA=%.1f° (%.2f h) | Dec=%.1f°",
+                viewAngleY, viewAngleY / 15, viewAngleX), 20, y);
     }
 
     public void setGridVisible(boolean v) { showGrid = v; repaint(); }
@@ -898,7 +1126,7 @@ public class StarSpherePanel extends JPanel {
     public void setSunVisible(boolean v) { showSun = v; repaint(); }
     public void setMoonVisible(boolean v) { showMoon = v; repaint(); }
     public void setEclipticVisible(boolean v) { showEcliptic = v; repaint(); }
-    public void resetView() { viewAngleX = 0; viewAngleY = 0; fieldOfView = 60; repaint(); }
+    public void resetView() { viewAngleX = -DEFAULT_RA; viewAngleY = DEFAULT_DEC; fieldOfView = 60; repaint(); }
 
     public boolean isGridVisible() { return showGrid; }
     public boolean isConstellationsVisible() { return showConstellations; }
