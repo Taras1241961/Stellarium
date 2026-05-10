@@ -233,15 +233,6 @@ public class CosmoComputerApp {
         resetViewBtn.addActionListener(e -> starPanel.resetView());
         panel.add(resetViewBtn);
 
-        JButton invertBtn = new JButton("Invert RA: ON");
-        invertBtn.setBackground(new Color(50, 50, 80));
-        invertBtn.setForeground(Color.WHITE);
-        invertBtn.addActionListener(e -> {
-            starPanel.setInvertRA(!starPanel.isInvertRA());
-            invertBtn.setText(starPanel.isInvertRA() ? "Invert RA: ON" : "Invert RA: OFF");
-        });
-        panel.add(invertBtn);
-
         JButton gridBtn = new JButton("Grid: ON");
         gridBtn.setBackground(new Color(50, 50, 80));
         gridBtn.setForeground(Color.WHITE);

@@ -23,10 +23,7 @@ public class StarSpherePanel extends JPanel {
     private Map<PlanetData, double[]> planetScreenPositions = new HashMap<>();
     private boolean showPlanets = true;
 
-    private static final double DEFAULT_RA = 0.0;
-    private static final double DEFAULT_DEC = 90.0;
-
-    private double viewAngleX = -DEFAULT_RA, viewAngleY = DEFAULT_DEC, fieldOfView = 60.0;
+    private double viewAngleX = 0.0, viewAngleY = 90.0, fieldOfView = 60.0;
     private int lastMouseX, lastMouseY;
 
     private boolean showGrid = true, showConstellations = true, showLabels = true;
@@ -86,9 +83,6 @@ public class StarSpherePanel extends JPanel {
             repaint();
         });
         messageTimer.setRepeats(false);
-
-        viewAngleX = -DEFAULT_RA;
-        viewAngleY = DEFAULT_DEC;
     }
 
     private void initPlanets() {
@@ -251,11 +245,20 @@ public class StarSpherePanel extends JPanel {
                 selectedSearchResult.dec = moonDec;
             }
 
-            double targetRaDeg = Math.toDegrees(selectedSearchResult.ra);
-            double targetDecDeg = Math.toDegrees(selectedSearchResult.dec);
+            double ra = 2 * Math.PI - selectedSearchResult.ra;
+            if (ra >= 2 * Math.PI) ra -= 2 * Math.PI;
+            double dec = selectedSearchResult.dec;
 
-            viewAngleY = targetDecDeg;
-            viewAngleX = targetRaDeg;
+            double x = Math.cos(dec) * Math.cos(ra);
+            double y = Math.cos(dec) * Math.sin(ra);
+            double z = Math.sin(dec);
+
+            double r = Math.sqrt(x*x + z*z);
+            double viewYTarget = Math.atan2(y, r);
+            double viewXTarget = Math.atan2(x, z);
+
+            viewAngleY = Math.toDegrees(viewYTarget);
+            viewAngleX = Math.toDegrees(viewXTarget);
 
             repaint();
 
@@ -338,17 +341,8 @@ public class StarSpherePanel extends JPanel {
                     case KeyEvent.VK_RIGHT: viewAngleX += 5; break;
                     case KeyEvent.VK_UP: viewAngleY += 5; break;
                     case KeyEvent.VK_DOWN: viewAngleY -= 5; break;
-                    case KeyEvent.VK_SPACE: viewAngleX = -DEFAULT_RA; viewAngleY = DEFAULT_DEC; fieldOfView = 60; break;
-                    case KeyEvent.VK_G: showGrid = !showGrid; repaint(); break;
-                    case KeyEvent.VK_C: showConstellations = !showConstellations; repaint(); break;
-                    case KeyEvent.VK_B: showBoundaries = !showBoundaries; repaint(); break;
-                    case KeyEvent.VK_L: showLabels = !showLabels; repaint(); break;
-                    case KeyEvent.VK_M: showMessier = !showMessier; repaint(); break;
-                    case KeyEvent.VK_P: showPlanets = !showPlanets; repaint(); break;
-                    case KeyEvent.VK_S: showSun = !showSun; repaint(); break;
-                    case KeyEvent.VK_O: showMoon = !showMoon; repaint(); break;
-                    case KeyEvent.VK_E: showEcliptic = !showEcliptic; repaint(); break;
-                    case KeyEvent.VK_I: invertRA = !invertRA; repaint(); break;
+                    case KeyEvent.VK_SPACE: viewAngleX = 0; viewAngleY = 90; fieldOfView = 60; break;
+                    case KeyEvent.VK_I: break;
                 }
             }
             return false;
@@ -401,7 +395,7 @@ public class StarSpherePanel extends JPanel {
     public double getTimeOffsetDays() { return timeOffsetDays; }
     public double getTimeSpeed() { return Math.abs(timeSpeed); }
     public boolean isTimePlaying() { return isTimePlaying; }
-    public void setInvertRA(boolean invert) { this.invertRA = invert; repaint(); }
+    public void setInvertRA(boolean invert) { }
     public boolean isInvertRA() { return invertRA; }
 
     private double getCurrentJD() {
@@ -618,7 +612,7 @@ public class StarSpherePanel extends JPanel {
     }
 
     private double[] getSunScreenPosition(int cx, int cy) {
-        double ra = invertRA ? -sunRa : sunRa;
+        double ra = -sunRa;
         double dec = sunDec;
         double x = Math.cos(dec) * Math.cos(ra);
         double y = Math.cos(dec) * Math.sin(ra);
@@ -627,7 +621,7 @@ public class StarSpherePanel extends JPanel {
     }
 
     private double[] getMoonScreenPosition(int cx, int cy) {
-        double ra = invertRA ? -moonRa : moonRa;
+        double ra = -moonRa;
         double dec = moonDec;
         double x = Math.cos(dec) * Math.cos(ra);
         double y = Math.cos(dec) * Math.sin(ra);
@@ -636,7 +630,7 @@ public class StarSpherePanel extends JPanel {
     }
 
     private double[] getPlanetScreenPosition(PlanetData planet, int cx, int cy) {
-        double ra = invertRA ? -planet.getRa() : planet.getRa();
+        double ra = -planet.getRa();
         double dec = planet.getDec();
         double x = Math.cos(dec) * Math.cos(ra);
         double y = Math.cos(dec) * Math.sin(ra);
@@ -720,7 +714,7 @@ public class StarSpherePanel extends JPanel {
         if (showGrid) drawGrid(g2d, cx, cy);
 
         if (selectedSearchResult != null) {
-            double ra = invertRA ? -selectedSearchResult.ra : selectedSearchResult.ra;
+            double ra = -selectedSearchResult.ra;
             double dec = selectedSearchResult.dec;
             double x = Math.cos(dec) * Math.cos(ra);
             double y = Math.cos(dec) * Math.sin(ra);
@@ -901,7 +895,7 @@ public class StarSpherePanel extends JPanel {
         for (HygStar star : stars) {
             if (star.getMag() > magnitudeLimit) continue;
 
-            double ra = invertRA ? -star.getRa() : star.getRa();
+            double ra = -star.getRa();
             double dec = star.getDec();
 
             double x = Math.cos(dec) * Math.cos(ra);
@@ -952,7 +946,7 @@ public class StarSpherePanel extends JPanel {
             String key = bp.getConstellation1();
             if (key == null) continue;
 
-            double ra = invertRA ? -bp.getRa() : bp.getRa();
+            double ra = -bp.getRa();
             double dec = bp.getDec();
 
             double x = Math.cos(dec) * Math.cos(ra);
@@ -977,7 +971,7 @@ public class StarSpherePanel extends JPanel {
         if (messierObjects == null) return;
 
         for (MessierObject obj : messierObjects) {
-            double ra = invertRA ? -obj.getRa() : obj.getRa();
+            double ra = -obj.getRa();
             double dec = obj.getDec();
 
             double x = Math.cos(dec) * Math.cos(ra);
@@ -1097,12 +1091,33 @@ public class StarSpherePanel extends JPanel {
 
     private void drawInfoPanel(Graphics2D g2d) {
         g2d.setColor(new Color(0, 0, 0, 200));
-        g2d.fillRect(10, 10, 450, 130);
+        g2d.fillRect(10, 10, 450, 110);
         g2d.setColor(Color.WHITE);
         g2d.setFont(new Font("Monospaced", Font.PLAIN, 12));
 
         double magnitudeLimit = 6.5 + (60.0 - fieldOfView) / 15.0;
         magnitudeLimit = Math.min(8.5, Math.max(4.5, magnitudeLimit));
+
+        double cosX = Math.cos(Math.toRadians(viewAngleX));
+        double sinX = Math.sin(Math.toRadians(viewAngleX));
+        double cosY = Math.cos(Math.toRadians(viewAngleY));
+        double sinY = Math.sin(Math.toRadians(viewAngleY));
+
+        double cx = 0, cy = 0, cz = 1;
+
+        double tempY = cy * cosY + cz * sinY;
+        double tempZ = -cy * sinY + cz * cosY;
+        cy = tempY;
+        cz = tempZ;
+
+        double tempX = cx * cosX + cz * sinX;
+        tempZ = -cx * sinX + cz * cosX;
+        cx = tempX;
+        cz = tempZ;
+
+        double dec = Math.asin(Math.max(-1, Math.min(1, cz)));
+        double ra = 2*Math.PI-Math.atan2(cy, cx);
+        if (ra > 2*Math.PI) ra = -Math.atan2(cy, cx);
 
         int y = 30;
         g2d.drawString(String.format("Moon: %.0f%%", moonIllumination * 100), 20, y);
@@ -1111,11 +1126,10 @@ public class StarSpherePanel extends JPanel {
         y += 20;
         g2d.drawString(String.format("Zoom: %.0f° | Limit: %.1fm", fieldOfView, magnitudeLimit), 20, y);
         y += 20;
-        g2d.drawString(String.format("Invert RA: %s | Ecliptic: %s", invertRA ? "ON" : "OFF", showEcliptic ? "ON" : "OFF"), 20, y);
-        y += 20;
-        g2d.drawString(String.format("Center: RA=%.1f° (%.2f h) | Dec=%.1f°",
-                viewAngleY, viewAngleY / 15, viewAngleX), 20, y);
+        g2d.drawString(String.format("Center: RA=%.2f h | Dec=%.1f°",
+                ra * 12 / Math.PI, Math.toDegrees(dec)), 20, y);
     }
+
 
     public void setGridVisible(boolean v) { showGrid = v; repaint(); }
     public void setConstellationsVisible(boolean v) { showConstellations = v; repaint(); }
@@ -1126,7 +1140,7 @@ public class StarSpherePanel extends JPanel {
     public void setSunVisible(boolean v) { showSun = v; repaint(); }
     public void setMoonVisible(boolean v) { showMoon = v; repaint(); }
     public void setEclipticVisible(boolean v) { showEcliptic = v; repaint(); }
-    public void resetView() { viewAngleX = -DEFAULT_RA; viewAngleY = DEFAULT_DEC; fieldOfView = 60; repaint(); }
+    public void resetView() { viewAngleX = 0; viewAngleY = 90; fieldOfView = 60; repaint(); }
 
     public boolean isGridVisible() { return showGrid; }
     public boolean isConstellationsVisible() { return showConstellations; }
