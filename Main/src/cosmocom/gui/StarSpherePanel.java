@@ -23,7 +23,7 @@ public class StarSpherePanel extends JPanel {
     private Map<PlanetData, double[]> planetScreenPositions = new HashMap<>();
     private boolean showPlanets = true;
 
-    private double viewAngleX = 0.0, viewAngleY = 90.0, fieldOfView = 60.0;
+    private double viewAngleX = 0.0, viewAngleY = 0.0, fieldOfView = 60.0;
     private int lastMouseX, lastMouseY;
 
     private boolean showGrid = true, showConstellations = true, showLabels = true;
@@ -286,6 +286,61 @@ public class StarSpherePanel extends JPanel {
             int prevIndex = (currentIndex - 1 + searchResults.size()) % searchResults.size();
             selectSearchResult(prevIndex);
         }
+    }
+
+    public List<String> getSearchResultNames() {
+        List<String> names = new ArrayList<>();
+        if (searchResults != null) {
+            for (SearchableObject obj : searchResults) {
+                names.add(obj.getDisplayName());
+            }
+        }
+        return names;
+    }
+
+    public String getSelectedObjectInfo() {
+        if (selectedSearchResult != null) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(selectedSearchResult.getDisplayName()).append("\n\n");
+
+            double raHours = selectedSearchResult.ra * 12 / Math.PI;
+            double decDeg = Math.toDegrees(selectedSearchResult.dec);
+            sb.append(String.format("RA: %.2f h\n", raHours));
+            sb.append(String.format("Dec: %.2f°\n", decDeg));
+
+            if (selectedSearchResult.source instanceof HygStar) {
+                HygStar star = (HygStar) selectedSearchResult.source;
+                sb.append(String.format("Mag: %.2f\n", star.getMag()));
+                sb.append(String.format("Color Index: %.2f\n", star.getColorIndex()));
+                double temp = estimateTemperature(star.getColorIndex());
+                sb.append(String.format("Temp: ~%.0f K\n", temp));
+            } else if (selectedSearchResult.source instanceof PlanetData) {
+                PlanetData planet = (PlanetData) selectedSearchResult.source;
+                sb.append(String.format("Dist: %.2f AU\n", planet.getDistanceAU()));
+                sb.append(String.format("Size: %.0f km\n", planet.getRadius()));
+            } else if (selectedSearchResult.source instanceof MessierObject) {
+            MessierObject obj = (MessierObject) selectedSearchResult.source;
+            sb.append(String.format("Type: %s\n", obj.getType()));
+            sb.append(String.format("Constellation: %s\n", obj.getConstellation()));
+            sb.append(String.format("Magnitude: %.1f\n", obj.getMagnitude()));
+            sb.append(String.format("Distance: %.0f ly\n", obj.getDistanceLy()));
+            sb.append(String.format("Size: %.1f'\n", obj.getSizeArcmin()));
+        }
+
+            return sb.toString();
+        }
+        return "";
+    }
+
+    public Object getSelectedSearchResult() {
+        if (selectedSearchResult != null && selectedSearchResult.source != null) {
+            return selectedSearchResult.source;
+        }
+        return selectedSearchResult;
+    }
+
+    private double estimateTemperature(double colorIndex) {
+        return 4600 * (1.0 / (0.92 * colorIndex + 1.7) + 1.0 / (0.92 * colorIndex + 0.62));
     }
 
     private void loadConstellationNames(String filename) throws Exception {
@@ -912,7 +967,7 @@ public class StarSpherePanel extends JPanel {
                 g2d.setColor(new Color(col.getRed(), col.getGreen(), col.getBlue(), alpha));
                 g2d.fillOval((int) sp[0] - (int) size / 2, (int) sp[1] - (int) size / 2, (int) size, (int) size);
 
-                if (showLabels && mag < 4.0 && star.getName() != null && !star.getName().isEmpty()) {
+                if (showLabels && mag < magnitudeLimit && star.getName() != null && !star.getName().isEmpty()) {
                     g2d.setColor(Color.WHITE);
                     g2d.setFont(new Font("Arial", Font.PLAIN, 10));
                     g2d.drawString(star.getName(), (int) sp[0] + 5, (int) sp[1] - 3);
@@ -971,7 +1026,7 @@ public class StarSpherePanel extends JPanel {
         if (messierObjects == null) return;
 
         for (MessierObject obj : messierObjects) {
-            double ra = -obj.getRa();
+            double ra = - obj.getRa();
             double dec = obj.getDec();
 
             double x = Math.cos(dec) * Math.cos(ra);

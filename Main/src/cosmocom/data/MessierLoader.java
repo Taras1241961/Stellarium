@@ -6,53 +6,37 @@ import java.nio.file.*;
 import java.util.*;
 
 public class MessierLoader {
-
-    public static List<MessierObject> loadMessier(String filename) {
+    public static List<MessierObject> loadMessier(String filename) throws IOException {
         List<MessierObject> objects = new ArrayList<>();
+        List<String> lines = Files.readAllLines(Paths.get(filename));
 
-        try {
-            List<String> lines = Files.readAllLines(Paths.get(filename));
-            System.out.println("Файл Мессье: прочитано строк " + lines.size());
+        for (String line : lines) {
+            if (line.trim().isEmpty()) continue;
+            String[] parts = line.trim().split(",");
 
-            for (String line : lines) {
-                if (line.trim().isEmpty()) continue;
-                if (line.startsWith("#")) continue;
+            try {
+                int number = Integer.parseInt(parts[0].substring(1));
+                String name = parts[1].trim();
+                String type = parts[2].trim();
+                double raHours = Double.parseDouble(parts[3].trim());
+                double decDeg = Double.parseDouble(parts[4].trim());
+                double ra = raHours * 15 * Math.PI / 180;
+                double dec = decDeg * Math.PI / 180;
+                double magnitude = Double.parseDouble(parts[5].trim());
+                String constellation = parts[6].trim();
+                double distanceLy = parts.length > 7 ? Double.parseDouble(parts[7].trim()) : 0;
+                double sizeArcmin = parts.length > 8 ? Double.parseDouble(parts[8].trim()) : 0;
 
-                String[] parts = line.split(",");
-
-                if (parts.length < 7) {
-                    System.out.println("Пропущена строка (мало полей): " + line);
-                    continue;
-                }
-
-                try {
-                    String mNumber = parts[0].trim();
-                    int number = Integer.parseInt(mNumber.substring(1));
-
-                    String name = parts[1].trim();
-                    String type = parts[2].trim();
-                    // RA в ЧАСАХ (0-24), а не в градусах!
-                    double raHours = Double.parseDouble(parts[3].trim());
-                    double decDeg = Double.parseDouble(parts[4].trim());
-                    double mag = Double.parseDouble(parts[5].trim());
-                    String constellation = parts[6].trim();
-
-                    MessierObject obj = new MessierObject(number, name, type, raHours, decDeg, mag, constellation);
-                    objects.add(obj);
-                    System.out.println("Загружен M" + number + ": " + name + " (RA=" + raHours + "ч, Dec=" + decDeg + "°)");
-
-                } catch (NumberFormatException e) {
-                    System.out.println("Ошибка парсинга строки: " + line);
-                }
+                MessierObject obj = new MessierObject(number, name, type, ra, dec, magnitude, constellation, distanceLy, sizeArcmin);
+                objects.add(obj);
+            } catch (Exception e) {
+                System.out.println("Error: " + line);
             }
-
-        } catch (Exception e) {
-            System.out.println("Ошибка загрузки Мессье: " + e.getMessage());
         }
-
-        System.out.println("Загружено Мессье: " + objects.size());
+        System.out.println("Messier loaded: " + objects.size());
         return objects;
     }
 }
+
 
 

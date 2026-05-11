@@ -5,6 +5,9 @@ import src.cosmocom.utils.TimeUtils;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.awt.event.*;
+import java.io.File;
+import src.cosmocom.model.MessierObject;
 
 public class CosmoComputerApp {
     private static StarSpherePanel starPanel;
@@ -14,6 +17,13 @@ public class CosmoComputerApp {
     private static JLabel timeOffsetLabel;
     private static JLabel timeSpeedLabel;
     private static JLabel timeStatusLabel;
+    private static JTextField searchField;
+    private static JList<String> suggestionList;
+    private static DefaultListModel<String> listModel;
+    private static javax.swing.Timer suggestionTimer;
+    private static JTextArea infoArea;
+    private static JLabel messierImageLabel;
+
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
@@ -24,6 +34,9 @@ public class CosmoComputerApp {
 
             starPanel = new StarSpherePanel();
             frame.add(starPanel, BorderLayout.CENTER);
+
+            JPanel leftPanel = createLeftPanel();
+            frame.add(leftPanel, BorderLayout.WEST);
 
             JPanel rightPanel = createRightPanel();
             frame.add(rightPanel, BorderLayout.EAST);
@@ -41,6 +54,171 @@ public class CosmoComputerApp {
             });
             timer.start();
         });
+    }
+
+    private static JPanel createLeftPanel() {
+        JPanel panel = new JPanel();
+        panel.setBackground(new Color(30, 30, 50));
+        panel.setPreferredSize(new Dimension(260, 0));
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(BorderFactory.createLineBorder(new Color(100, 150, 200), 2));
+
+        panel.add(Box.createVerticalStrut(10));
+
+        JLabel searchTitle = new JLabel("SEARCH OBJECT");
+        searchTitle.setForeground(Color.ORANGE);
+        searchTitle.setFont(new Font("Arial", Font.BOLD, 12));
+        searchTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(searchTitle);
+        panel.add(Box.createVerticalStrut(8));
+
+        searchField = new JTextField();
+        searchField.setBackground(new Color(50, 50, 70));
+        searchField.setForeground(Color.WHITE);
+        searchField.setCaretColor(Color.WHITE);
+        searchField.setFont(new Font("Arial", Font.PLAIN, 13));
+        searchField.setMaximumSize(new Dimension(230, 28));
+        searchField.addActionListener(e -> {
+            if (listModel.size() > 0) {
+                starPanel.selectSearchResult(suggestionList.getSelectedIndex());
+                searchField.setText("");
+                listModel.clear();
+                updateInfoCard();
+            }
+        });
+
+        searchField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            public void insertUpdate(javax.swing.event.DocumentEvent e) { updateSuggestions(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e) { updateSuggestions(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e) { updateSuggestions(); }
+        });
+
+        panel.add(searchField);
+        panel.add(Box.createVerticalStrut(5));
+
+        listModel = new DefaultListModel<>();
+        suggestionList = new JList<>(listModel);
+        suggestionList.setBackground(new Color(40, 40, 60));
+        suggestionList.setForeground(Color.WHITE);
+        suggestionList.setFont(new Font("Arial", Font.PLAIN, 11));
+        suggestionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        suggestionList.setVisibleRowCount(6);
+
+        suggestionList.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 1 && suggestionList.getSelectedIndex() >= 0) {
+                    starPanel.selectSearchResult(suggestionList.getSelectedIndex());
+                    searchField.setText("");
+                    listModel.clear();
+                    updateInfoCard();
+                }
+            }
+        });
+
+        suggestionList.addKeyListener(new KeyAdapter() {
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER && suggestionList.getSelectedIndex() >= 0) {
+                    starPanel.selectSearchResult(suggestionList.getSelectedIndex());
+                    searchField.setText("");
+                    listModel.clear();
+                    updateInfoCard();
+                }
+            }
+        });
+
+        JScrollPane scrollPane = new JScrollPane(suggestionList);
+        scrollPane.setMaximumSize(new Dimension(230, 130));
+        scrollPane.setPreferredSize(new Dimension(230, 130));
+        panel.add(scrollPane);
+
+        panel.add(Box.createVerticalStrut(5));
+
+        JPanel navPanel = new JPanel(new GridLayout(1, 2, 5, 5));
+        navPanel.setBackground(new Color(30, 30, 50));
+        navPanel.setMaximumSize(new Dimension(230, 28));
+
+        JButton prevBtn = new JButton("Prev");
+        prevBtn.setBackground(new Color(50, 50, 80));
+        prevBtn.setForeground(Color.WHITE);
+        prevBtn.addActionListener(e -> {
+            starPanel.previousSearchResult();
+            updateInfoCard();
+        });
+        navPanel.add(prevBtn);
+
+        JButton nextBtn = new JButton("Next");
+        nextBtn.setBackground(new Color(50, 50, 80));
+        nextBtn.setForeground(Color.WHITE);
+        nextBtn.addActionListener(e -> {
+            starPanel.nextSearchResult();
+            updateInfoCard();
+        });
+        navPanel.add(nextBtn);
+
+        panel.add(navPanel);
+        panel.add(Box.createVerticalStrut(10));
+
+        JSeparator sep = new JSeparator();
+        sep.setForeground(new Color(100, 150, 200));
+        sep.setMaximumSize(new Dimension(230, 3));
+        panel.add(sep);
+        panel.add(Box.createVerticalStrut(5));
+
+        JLabel infoTitle = new JLabel("OBJECT INFO");
+        infoTitle.setForeground(new Color(100, 200, 255));
+        infoTitle.setFont(new Font("Arial", Font.BOLD, 11));
+        infoTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
+        panel.add(infoTitle);
+        panel.add(Box.createVerticalStrut(5));
+
+        infoArea = new JTextArea();
+        infoArea.setBackground(new Color(40, 40, 60));
+        infoArea.setForeground(Color.WHITE);
+        infoArea.setFont(new Font("Monospaced", Font.PLAIN, 11));
+        infoArea.setEditable(false);
+        infoArea.setLineWrap(true);
+        infoArea.setWrapStyleWord(true);
+        infoArea.setMaximumSize(new Dimension(230, 150));
+
+        JScrollPane infoScroll = new JScrollPane(infoArea);
+        infoScroll.setMaximumSize(new Dimension(230, 150));
+        infoScroll.setPreferredSize(new Dimension(230, 150));
+        panel.add(infoScroll);
+        panel.add(Box.createVerticalStrut(5));
+        messierImageLabel = new JLabel();
+        messierImageLabel.setBackground(new Color(30, 30, 50));
+        messierImageLabel.setForeground(Color.WHITE);
+        messierImageLabel.setFont(new Font("Arial", Font.PLAIN, 10));
+        messierImageLabel.setHorizontalAlignment(JLabel.CENTER);
+        messierImageLabel.setMaximumSize(new Dimension(230, 200));
+        messierImageLabel.setPreferredSize(new Dimension(230, 200));
+        messierImageLabel.setBorder(BorderFactory.createLineBorder(new Color(80, 80, 100), 1));
+        panel.add(messierImageLabel);
+
+        panel.add(Box.createVerticalStrut(15));
+
+        return panel;
+    }
+
+    private static void updateSuggestions() {
+        String text = searchField.getText();
+        if (text == null || text.trim().isEmpty()) {
+            listModel.clear();
+            return;
+        }
+
+        starPanel.search(text);
+
+        listModel.clear();
+        java.util.List<String> results = starPanel.getSearchResultNames();
+        if (results != null) {
+            for (String name : results) {
+                listModel.addElement(name);
+            }
+        }
+        if (listModel.size() > 0) {
+            suggestionList.setSelectedIndex(0);
+        }
     }
 
     private static JPanel createRightPanel() {
@@ -221,17 +399,48 @@ public class CosmoComputerApp {
             timeStatusLabel.setForeground(starPanel.isTimePlaying() ? Color.GREEN : Color.RED);
         }
     }
+    private static void updateInfoCard() {
+        if (infoArea != null && starPanel != null) {
+            infoArea.setText(starPanel.getSelectedObjectInfo());
+            updateMessierImage();
+        }
+    }
+
+    private static void updateMessierImage() {
+        if (starPanel != null && starPanel.getSelectedSearchResult() != null) {
+            Object source = starPanel.getSelectedSearchResult();
+            if (source instanceof MessierObject) {
+                MessierObject obj = (MessierObject) source;
+                int num = obj.getNumber();
+                String[] extensions = {".jpg", ".jpeg", ".png", ".gif", ".bmp"};
+                boolean found = false;
+                for (String ext : extensions) {
+                    File file = new File("data/messier/m" + num + ext);
+                    System.out.println("Looking for: " + file.getAbsolutePath() + " exists: " + file.exists());
+                    if (file.exists()) {
+                        ImageIcon icon = new ImageIcon(file.getAbsolutePath());
+                        Image img = icon.getImage().getScaledInstance(220, 180, Image.SCALE_SMOOTH);
+                        messierImageLabel.setIcon(new ImageIcon(img));
+                        messierImageLabel.setText("");
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    messierImageLabel.setIcon(null);
+                    messierImageLabel.setText("No image for M" + num);
+                }
+                return;
+            }
+        }
+        messierImageLabel.setIcon(null);
+        messierImageLabel.setText("");
+    }
 
     private static JPanel createControlPanel() {
         JPanel panel = new JPanel();
         panel.setBackground(new Color(30, 30, 50));
         panel.setLayout(new FlowLayout());
-
-        JButton resetViewBtn = new JButton("Reset View");
-        resetViewBtn.setBackground(new Color(0, 100, 150));
-        resetViewBtn.setForeground(Color.WHITE);
-        resetViewBtn.addActionListener(e -> starPanel.resetView());
-        panel.add(resetViewBtn);
 
         JButton gridBtn = new JButton("Grid: ON");
         gridBtn.setBackground(new Color(50, 50, 80));
@@ -251,12 +460,12 @@ public class CosmoComputerApp {
         });
         panel.add(constBtn);
 
-        JButton boundariesBtn = new JButton("Boundaries: ON");
+        JButton boundariesBtn = new JButton("Bound: ON");
         boundariesBtn.setBackground(new Color(50, 50, 80));
         boundariesBtn.setForeground(Color.WHITE);
         boundariesBtn.addActionListener(e -> {
             starPanel.setBoundariesVisible(!starPanel.isBoundariesVisible());
-            boundariesBtn.setText(starPanel.isBoundariesVisible() ? "Boundaries: ON" : "Boundaries: OFF");
+            boundariesBtn.setText(starPanel.isBoundariesVisible() ? "Bound: ON" : "Bound: OFF");
         });
         panel.add(boundariesBtn);
 
@@ -313,40 +522,6 @@ public class CosmoComputerApp {
             eclipticBtn.setText(starPanel.isEclipticVisible() ? "Ecliptic: ON" : "Ecliptic: OFF");
         });
         panel.add(eclipticBtn);
-
-        JPanel searchPanel = new JPanel();
-        searchPanel.setBackground(new Color(30, 30, 50));
-        searchPanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(Color.ORANGE), "SEARCH",
-                TitledBorder.LEFT, TitledBorder.TOP, new Font("Arial", Font.BOLD, 10), Color.ORANGE));
-
-        JTextField searchField = new JTextField(15);
-        searchField.setBackground(new Color(50, 50, 70));
-        searchField.setForeground(Color.WHITE);
-        searchField.setCaretColor(Color.WHITE);
-        searchField.addActionListener(e -> starPanel.search(searchField.getText()));
-
-        JButton searchBtn = new JButton("Find");
-        searchBtn.setBackground(new Color(0, 100, 100));
-        searchBtn.setForeground(Color.WHITE);
-        searchBtn.addActionListener(e -> starPanel.search(searchField.getText()));
-
-        JButton prevSearchBtn = new JButton("Prev");
-        prevSearchBtn.setBackground(new Color(50, 50, 80));
-        prevSearchBtn.setForeground(Color.WHITE);
-        prevSearchBtn.addActionListener(e -> starPanel.previousSearchResult());
-
-        JButton nextSearchBtn = new JButton("Next");
-        nextSearchBtn.setBackground(new Color(50, 50, 80));
-        nextSearchBtn.setForeground(Color.WHITE);
-        nextSearchBtn.addActionListener(e -> starPanel.nextSearchResult());
-
-        searchPanel.add(searchField);
-        searchPanel.add(searchBtn);
-        searchPanel.add(prevSearchBtn);
-        searchPanel.add(nextSearchBtn);
-
-        panel.add(searchPanel);
 
         return panel;
     }

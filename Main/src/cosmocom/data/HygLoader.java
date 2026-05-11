@@ -20,6 +20,7 @@ public class HygLoader {
         String[] columns = header.split(",");
 
         int hipIdx = -1, raIdx = -1, decIdx = -1, magIdx = -1, bvIdx = -1, nameIdx = -1;
+        int bayerIdx = -1, flamIdx = -1, conIdx = -1, distIdx = -1, spectIdx = -1;
 
         for (int i = 0; i < columns.length; i++) {
             String col = columns[i].trim();
@@ -30,6 +31,11 @@ public class HygLoader {
                 case "mag": magIdx = i; break;
                 case "ci": bvIdx = i; break;
                 case "proper": nameIdx = i; break;
+                case "bayer": bayerIdx = i; break;
+                case "flam": flamIdx = i; break;
+                case "con": conIdx = i; break;
+                case "dist": distIdx = i; break;
+                case "spect": spectIdx = i; break;
             }
         }
 
@@ -51,16 +57,37 @@ public class HygLoader {
                 double mag = magIdx >= 0 && parts.length > magIdx ? Double.parseDouble(parts[magIdx]) : 99;
                 double bv = bvIdx >= 0 && parts.length > bvIdx && !parts[bvIdx].isEmpty() ?
                         Double.parseDouble(parts[bvIdx]) : 0.6;
-                String name = nameIdx >= 0 && parts.length > nameIdx ? parts[nameIdx] : "";
 
-                // ПРОПУСКАЕМ ЗВЕЗДУ "Sol" (наше Солнце)
+                double dist = distIdx >= 0 && parts.length > distIdx && !parts[distIdx].isEmpty() ?
+                        Double.parseDouble(parts[distIdx]) : -1;
+
+                String spect = spectIdx >= 0 && parts.length > spectIdx ? parts[spectIdx].trim() : "";
+
+                String name = nameIdx >= 0 && parts.length > nameIdx && !parts[nameIdx].isEmpty() ?
+                        parts[nameIdx].trim() : "";
+
+                if (name.isEmpty()) {
+                    String bayer = bayerIdx >= 0 && parts.length > bayerIdx && !parts[bayerIdx].isEmpty() ?
+                            parts[bayerIdx].trim() : "";
+                    String flam = flamIdx >= 0 && parts.length > flamIdx && !parts[flamIdx].isEmpty() ?
+                            parts[flamIdx].trim() : "";
+                    String con = conIdx >= 0 && parts.length > conIdx && !parts[conIdx].isEmpty() ?
+                            parts[conIdx].trim() : "";
+
+                    if (!bayer.isEmpty() && !con.isEmpty()) {
+                        name = bayer + " " + con;
+                    } else if (!flam.isEmpty() && !con.isEmpty()) {
+                        name = flam + " " + con;
+                    }
+                }
+
                 if (name != null && name.trim().equalsIgnoreCase("Sol")) {
                     System.out.println("Пропущена звезда: " + name);
                     continue;
                 }
 
                 if (mag < 6.5) {
-                    HygStar star = new HygStar(count, hipId, name, raRad, decRad, mag, bv);
+                    HygStar star = new HygStar(count, hipId, name, raRad, decRad, mag, bv, dist, spect);
                     stars.add(star);
                     if (hipId > 0) hipMap.put(hipId, star);
                     count++;
