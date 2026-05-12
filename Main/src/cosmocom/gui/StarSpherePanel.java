@@ -18,10 +18,17 @@ public class StarSpherePanel extends JPanel {
     private Map<String, String> constellationNames = new HashMap<>();
     private Map<HygStar, double[]> starPositions = new HashMap<>();
     private Map<MessierObject, double[]> messierPositions = new HashMap<>();
+    private boolean planetZoomMode = false;
+    private PlanetData zoomedPlanet = null;
+    private double zoomTransition = 0.0;
+    private javax.swing.Timer zoomAnimationTimer;
+    private double[] planetMoonAngles = new double[20];
+    private Random random = new Random();
 
     private List<PlanetData> planets;
     private Map<PlanetData, double[]> planetScreenPositions = new HashMap<>();
     private boolean showPlanets = true;
+    private long lastMoonUpdateTime = System.currentTimeMillis();
 
     private double viewAngleX = 0.0, viewAngleY = 0.0, fieldOfView = 60.0;
     private int lastMouseX, lastMouseY;
@@ -325,11 +332,66 @@ public class StarSpherePanel extends JPanel {
             sb.append(String.format("Magnitude: %.1f\n", obj.getMagnitude()));
             sb.append(String.format("Distance: %.0f ly\n", obj.getDistanceLy()));
             sb.append(String.format("Size: %.1f'\n", obj.getSizeArcmin()));
-        }
-
+            } else if (selectedSearchResult.source instanceof PlanetData) {
+                PlanetData planet = (PlanetData) selectedSearchResult.source;
+                // ... (уже существующие строки)
+                sb.append(String.format("Mass: %.2f Earth masses\n", getPlanetMass(planet.getName())));
+                java.util.List<MoonData> moons = getMoons(planet.getName());
+                if (!moons.isEmpty()) {
+                    sb.append("\nMoons:\n");
+                    for (MoonData moon : moons) {
+                        sb.append(String.format("  %s (r=%.0f km, orb=%.0f km)\n",
+                                moon.getName(), moon.getRadiusKm(), moon.getOrbitRadiusKm()));
+                    }
+                }
+            }
             return sb.toString();
         }
         return "";
+    }
+
+    private double getPlanetMass(String name) {
+        switch (name) {
+            case "Mercury": return 0.055;
+            case "Venus": return 0.815;
+            case "Earth": return 1.0;
+            case "Mars": return 0.107;
+            case "Jupiter": return 317.8;
+            case "Saturn": return 95.2;
+            case "Uranus": return 14.5;
+            case "Neptune": return 17.1;
+            case "Pluto": return 0.002;
+            default: return 0;
+        }
+    }
+
+    public void zoomToPlanet(PlanetData planet) {
+        this.zoomedPlanet = planet;
+        this.planetZoomMode = true;
+        this.zoomTransition = 0.0;
+        if (zoomAnimationTimer != null) zoomAnimationTimer.stop();
+        zoomAnimationTimer = new javax.swing.Timer(20, e -> {
+            zoomTransition += 0.02;
+            if (zoomTransition >= 1.0) {
+                zoomTransition = 1.0;
+                zoomAnimationTimer.stop();
+            }
+            repaint();
+        });
+        zoomAnimationTimer.start();
+    }
+
+    public void closePlanetZoom() {
+        this.planetZoomMode = false;
+        this.zoomedPlanet = null;
+        if (zoomAnimationTimer != null) zoomAnimationTimer.stop();
+        repaint();
+    }
+
+    public void zoomToSelectedPlanet() {
+        if (selectedSearchResult != null && selectedSearchResult.source instanceof PlanetData) {
+            zoomToPlanet((PlanetData) selectedSearchResult.source);
+        }
     }
 
     public Object getSelectedSearchResult() {
@@ -398,6 +460,9 @@ public class StarSpherePanel extends JPanel {
                     case KeyEvent.VK_DOWN: viewAngleY -= 5; break;
                     case KeyEvent.VK_SPACE: viewAngleX = 0; viewAngleY = 90; fieldOfView = 60; break;
                     case KeyEvent.VK_I: break;
+                    case KeyEvent.VK_ESCAPE:
+                        if (planetZoomMode) closePlanetZoom();
+                        break;
                 }
             }
             return false;
@@ -412,6 +477,9 @@ public class StarSpherePanel extends JPanel {
             }
         });
         timeTimer.start();
+        for (int i = 0; i < planetMoonAngles.length; i++) {
+            planetMoonAngles[i] = random.nextDouble() * 2 * Math.PI;
+        }
     }
 
     public void timeRewindFast() {
@@ -781,6 +849,9 @@ public class StarSpherePanel extends JPanel {
                 g2d.drawOval((int) sp[0] - 15, (int) sp[1] - 15, 30, 30);
                 g2d.setColor(Color.YELLOW);
             }
+        }
+        if (planetZoomMode && zoomedPlanet != null) {
+            drawPlanetZoomMode(g2d, cx, cy);
         }
 
         drawInfoPanel(g2d);
@@ -1185,6 +1256,157 @@ public class StarSpherePanel extends JPanel {
                 ra * 12 / Math.PI, Math.toDegrees(dec)), 20, y);
     }
 
+    private void drawPlanetZoomMode(Graphics2D g2d, int cx, int cy) {
+        int alpha = (int) (200 * zoomTransition);
+        g2d.setColor(new Color(0, 0, 0, alpha));
+        g2d.fillRect(0, 0, getWidth(), getHeight());
+
+        double planetRadiusKm = zoomedPlanet.getRadius();
+        java.util.List<MoonData> moons = getMoons(zoomedPlanet.getName());
+
+        double scale = 0.0005;
+
+        int planetSize = (int) (planetRadiusKm * 2 * scale * zoomTransition);
+        if (planetSize < 10) planetSize = 10;
+
+        int px = cx - planetSize / 2;
+        int py = cy - planetSize / 2;
+
+        if (zoomTransition > 0.5) {
+            RadialGradientPaint glow = new RadialGradientPaint(
+                    cx, cy, planetSize,
+                    new float[]{0f, 0.7f, 1f},
+                    new Color[]{
+                            new Color(zoomedPlanet.getColor().getRed(), zoomedPlanet.getColor().getGreen(), zoomedPlanet.getColor().getBlue(), 100),
+                            new Color(zoomedPlanet.getColor().getRed(), zoomedPlanet.getColor().getGreen(), zoomedPlanet.getColor().getBlue(), 50),
+                            new Color(0, 0, 0, 0)
+                    }
+            );
+            g2d.setPaint(glow);
+            g2d.fillOval(px - 30, py - 30, planetSize + 60, planetSize + 60);
+        }
+
+        g2d.setColor(zoomedPlanet.getColor());
+        g2d.fillOval(px, py, planetSize, planetSize);
+
+        if (zoomedPlanet.getName().equals("Saturn")) {
+            g2d.setColor(new Color(210, 180, 120, 150));
+            g2d.setStroke(new BasicStroke(3));
+            g2d.drawOval(px - 20, py + planetSize/3, planetSize + 40, planetSize/3);
+            g2d.drawOval(px - 30, py + planetSize/3 - 5, planetSize + 60, planetSize/3 + 10);
+        }
+
+        if (zoomTransition > 0.6) {
+            long currentTime = System.currentTimeMillis();
+            double timeStep = (currentTime - lastMoonUpdateTime) / 1000.0;
+            lastMoonUpdateTime = currentTime;
+
+            for (MoonData moon : moons) {
+                moon.setAngle(moon.getAngle() + moon.getOrbitalSpeed() * timeStep);
+
+                double orbitPx = moon.getOrbitRadiusKm() * scale;
+                double moonRadiusPx = Math.max(2, moon.getRadiusKm() * scale);
+
+                int moonX = (int)(cx + Math.cos(moon.getAngle()) * orbitPx);
+                int moonY = (int)(cy + Math.sin(moon.getAngle()) * orbitPx * 0.5);
+
+                if (moonY > cy + planetSize / 2.0) continue;
+
+                g2d.setColor(Color.LIGHT_GRAY);
+                int moonDrawSize = (int)(moonRadiusPx * 2);
+                if (moonDrawSize < 4) moonDrawSize = 4;
+                g2d.fillOval(moonX - moonDrawSize/2, moonY - moonDrawSize/2, moonDrawSize, moonDrawSize);
+                g2d.setColor(Color.WHITE);
+                g2d.drawString(moon.getName(), moonX + moonDrawSize/2 + 2, moonY);
+            }
+        }
+    }
+
+    private java.util.List<MoonData> getMoons(String planetName) {
+        java.util.List<MoonData> moons = new java.util.ArrayList<>();
+        switch (planetName) {
+            case "Mars":
+                moons.add(new MoonData("Phobos", 9377, 11.3, 1.06e16, 0.319));
+                moons.add(new MoonData("Deimos", 23460, 6.2, 1.5e15, 1.263));
+                break;
+            case "Jupiter":
+                moons.add(new MoonData("Io", 421700, 1821, 8.93e22, 1.769));
+                moons.add(new MoonData("Europa", 671034, 1560, 4.8e22, 3.551));
+                moons.add(new MoonData("Ganymede", 1070412, 2634, 1.48e23, 7.155));
+                moons.add(new MoonData("Callisto", 1882709, 2408, 1.08e23, 16.689));
+                break;
+            case "Saturn":
+                moons.add(new MoonData("Mimas", 185539, 198, 3.75e19, 0.942));
+                moons.add(new MoonData("Enceladus", 237948, 252, 1.08e20, 1.370));
+                moons.add(new MoonData("Tethys", 294619, 531, 6.17e20, 1.888));
+                moons.add(new MoonData("Dione", 377396, 561, 1.09e21, 2.737));
+                moons.add(new MoonData("Rhea", 527108, 763, 2.31e21, 4.518));
+                moons.add(new MoonData("Titan", 1221865, 2574, 1.35e23, 15.945));
+                break;
+            case "Uranus":
+                moons.add(new MoonData("Miranda", 129390, 235, 6.6e19, 1.413));
+                moons.add(new MoonData("Ariel", 191020, 578, 1.35e21, 2.520));
+                moons.add(new MoonData("Umbriel", 266300, 584, 1.17e21, 4.144));
+                moons.add(new MoonData("Titania", 435910, 788, 3.53e21, 8.706));
+                moons.add(new MoonData("Oberon", 583520, 761, 3.01e21, 13.463));
+                break;
+            case "Neptune":
+                moons.add(new MoonData("Triton", 354759, 1353, 2.14e22, 5.877));
+                moons.add(new MoonData("Proteus", 117647, 210, 5.0e19, 1.122));
+                moons.add(new MoonData("Nereid", 5513818, 170, 3.1e19, 360.13));
+                break;
+            case "Pluto":
+                moons.add(new MoonData("Charon", 19591, 606, 1.52e21, 6.387));
+                moons.add(new MoonData("Styx", 42656, 10, 5.0e15, 20.161));
+                moons.add(new MoonData("Nix", 48694, 45, 4.5e16, 24.854));
+                moons.add(new MoonData("Kerberos", 57783, 12, 1.6e16, 32.167));
+                moons.add(new MoonData("Hydra", 64738, 42, 4.8e16, 38.201));
+                break;
+            case "Ceres":
+                break;
+            case "Eris":
+                moons.add(new MoonData("Dysnomia", 37350, 350, 1.0e17, 15.774));
+                break;
+            case "Makemake":
+                moons.add(new MoonData("MK2", 21000, 80, 2.0e15, 12.4));
+                break;
+            case "Haumea":
+                moons.add(new MoonData("Hi'iaka", 49880, 160, 1.8e16, 49.12));
+                moons.add(new MoonData("Namaka", 25657, 85, 8.0e15, 18.278));
+                break;
+        }
+        return moons;
+    }
+
+    private void drawMoons(Graphics2D g2d, int cx, int cy, int planetSize) {
+        java.util.List<MoonData> moons = getMoons(zoomedPlanet.getName());
+        if (moons.isEmpty()) return;
+
+        double planetRadiusKm = zoomedPlanet.getRadius();
+        double scale = (planetSize * 0.5) / planetRadiusKm;
+
+        long currentTime = System.currentTimeMillis();
+        double timeStep = (currentTime - lastMoonUpdateTime) / 1000.0;
+        lastMoonUpdateTime = currentTime;
+
+        for (MoonData moon : moons) {
+            moon.setAngle(moon.getAngle() + moon.getOrbitalSpeed() * timeStep);
+
+            double orbitPx = moon.getOrbitRadiusKm() * scale;
+            double moonRadiusPx = Math.max(2, moon.getRadiusKm() * scale);
+
+            int moonX = (int)(cx + Math.cos(moon.getAngle()) * orbitPx);
+            int moonY = (int)(cy + Math.sin(moon.getAngle()) * orbitPx * 0.5);
+
+            if (moonY > cy + planetSize / 2.0) continue;
+
+            g2d.setColor(Color.LIGHT_GRAY);
+            int moonDrawSize = (int)(moonRadiusPx * 2);
+            g2d.fillOval(moonX - (int)moonRadiusPx, moonY - (int)moonRadiusPx, moonDrawSize, moonDrawSize);
+            g2d.setColor(Color.WHITE);
+            g2d.drawString(moon.getName(), moonX + (int)moonRadiusPx + 2, moonY);
+        }
+    }
 
     public void setGridVisible(boolean v) { showGrid = v; repaint(); }
     public void setConstellationsVisible(boolean v) { showConstellations = v; repaint(); }

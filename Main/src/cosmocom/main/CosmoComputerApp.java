@@ -111,6 +111,7 @@ public class CosmoComputerApp {
                     searchField.setText("");
                     listModel.clear();
                     updateInfoCard();
+                    starPanel.zoomToSelectedPlanet();
                 }
             }
         });
