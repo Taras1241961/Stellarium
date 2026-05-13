@@ -24,11 +24,13 @@ public class StarSpherePanel extends JPanel {
     private javax.swing.Timer zoomAnimationTimer;
     private double[] planetMoonAngles = new double[20];
     private Random random = new Random();
+    private double planetZoomScale = 0.0005;
+    private boolean sunZoomMode = false;
+    private boolean moonZoomMode = false;
 
     private List<PlanetData> planets;
     private Map<PlanetData, double[]> planetScreenPositions = new HashMap<>();
     private boolean showPlanets = true;
-    private long lastMoonUpdateTime = System.currentTimeMillis();
 
     private double viewAngleX = 0.0, viewAngleY = 0.0, fieldOfView = 60.0;
     private int lastMouseX, lastMouseY;
@@ -189,6 +191,10 @@ public class StarSpherePanel extends JPanel {
         return results;
     }
 
+    public void setSelectedObjectForInfo(String name, String type, double ra, double dec, Object source) {
+        this.selectedSearchResult = new SearchableObject(name, type, ra, dec, source);
+    }
+
     public void search(String searchText) {
         updateSunPosition();
         updateMoonPosition();
@@ -227,7 +233,6 @@ public class StarSpherePanel extends JPanel {
             repaint();
         }
     }
-
     public void selectSearchResult(int index) {
         if (searchResults != null && index >= 0 && index < searchResults.size()) {
             selectedSearchResult = searchResults.get(index);
@@ -279,6 +284,7 @@ public class StarSpherePanel extends JPanel {
         }
     }
 
+
     public void nextSearchResult() {
         if (searchResults != null && !searchResults.isEmpty()) {
             int currentIndex = searchResults.indexOf(selectedSearchResult);
@@ -323,27 +329,42 @@ public class StarSpherePanel extends JPanel {
                 sb.append(String.format("Temp: ~%.0f K\n", temp));
             } else if (selectedSearchResult.source instanceof PlanetData) {
                 PlanetData planet = (PlanetData) selectedSearchResult.source;
-                sb.append(String.format("Dist: %.2f AU\n", planet.getDistanceAU()));
-                sb.append(String.format("Size: %.0f km\n", planet.getRadius()));
-            } else if (selectedSearchResult.source instanceof MessierObject) {
-            MessierObject obj = (MessierObject) selectedSearchResult.source;
-            sb.append(String.format("Type: %s\n", obj.getType()));
-            sb.append(String.format("Constellation: %s\n", obj.getConstellation()));
-            sb.append(String.format("Magnitude: %.1f\n", obj.getMagnitude()));
-            sb.append(String.format("Distance: %.0f ly\n", obj.getDistanceLy()));
-            sb.append(String.format("Size: %.1f'\n", obj.getSizeArcmin()));
-            } else if (selectedSearchResult.source instanceof PlanetData) {
-                PlanetData planet = (PlanetData) selectedSearchResult.source;
-                // ... (уже существующие строки)
+                sb.append(String.format("Type: %s\n", planet.isDwarf() ? "Dwarf Planet" : "Planet"));
+                sb.append(String.format("Distance: %.2f AU\n", planet.getDistanceAU()));
+                sb.append(String.format("Radius: %.0f km\n", planet.getRadius()));
+                sb.append(String.format("Orbital Period: %.2f years\n", planet.getOrbitalPeriod()));
+                sb.append(String.format("Semi-Major Axis: %.3f AU\n", planet.getSemiMajorAxis()));
+                sb.append(String.format("Eccentricity: %.4f\n", planet.getEccentricity()));
                 sb.append(String.format("Mass: %.2f Earth masses\n", getPlanetMass(planet.getName())));
                 java.util.List<MoonData> moons = getMoons(planet.getName());
                 if (!moons.isEmpty()) {
                     sb.append("\nMoons:\n");
                     for (MoonData moon : moons) {
-                        sb.append(String.format("  %s (r=%.0f km, orb=%.0f km)\n",
-                                moon.getName(), moon.getRadiusKm(), moon.getOrbitRadiusKm()));
+                        sb.append(String.format("  %s (r=%.0f km, orb=%.0f km, P=%.1f d)\n",
+                                moon.getName(), moon.getRadiusKm(), moon.getOrbitRadiusKm(), moon.getOrbitalPeriodDays()));
                     }
                 }
+            } else if (selectedSearchResult.source instanceof MessierObject) {
+                MessierObject obj = (MessierObject) selectedSearchResult.source;
+                sb.append(String.format("Type: %s\n", obj.getType()));
+                sb.append(String.format("Constellation: %s\n", obj.getConstellation()));
+                sb.append(String.format("Magnitude: %.1f\n", obj.getMagnitude()));
+                sb.append(String.format("Distance: %.0f ly\n", obj.getDistanceLy()));
+                sb.append(String.format("Size: %.1f'\n", obj.getSizeArcmin()));
+            } else if (selectedSearchResult.name != null && selectedSearchResult.name.equals("Sun")) {
+                sb.append("Type: G2V Star\n");
+                sb.append("Radius: 696 340 km\n");
+                sb.append("Mass: 1.989e30 kg\n");
+                sb.append("Temperature: 5778 K\n");
+                sb.append("Distance: 1 AU\n");
+                sb.append("Age: 4.6 billion years\n");
+            } else if (selectedSearchResult.name != null && selectedSearchResult.name.equals("Moon")) {
+                sb.append("Type: Natural Satellite\n");
+                sb.append("Radius: 1737 km\n");
+                sb.append("Mass: 7.342e22 kg\n");
+                sb.append("Distance from Earth: 384 400 km\n");
+                sb.append("Orbital Period: 27.32 days\n");
+                sb.append(String.format("Phase: %.0f%% illuminated\n", moonIllumination * 100));
             }
             return sb.toString();
         }
@@ -361,6 +382,10 @@ public class StarSpherePanel extends JPanel {
             case "Uranus": return 14.5;
             case "Neptune": return 17.1;
             case "Pluto": return 0.002;
+            case "Ceres": return 0.00015;
+            case "Eris": return 0.0028;
+            case "Makemake": return 0.0005;
+            case "Haumea": return 0.0007;
             default: return 0;
         }
     }
@@ -380,17 +405,58 @@ public class StarSpherePanel extends JPanel {
         });
         zoomAnimationTimer.start();
     }
+    public void zoomToSun() {
+        this.sunZoomMode = true;
+        this.moonZoomMode = false;
+        this.planetZoomMode = false;
+        this.zoomTransition = 0.0;
+        if (zoomAnimationTimer != null) zoomAnimationTimer.stop();
+        zoomAnimationTimer = new javax.swing.Timer(20, e -> {
+            zoomTransition += 0.02;
+            if (zoomTransition >= 1.0) {
+                zoomTransition = 1.0;
+                zoomAnimationTimer.stop();
+            }
+            repaint();
+        });
+        zoomAnimationTimer.start();
+    }
+
+    public void zoomToMoon() {
+        this.moonZoomMode = true;
+        this.sunZoomMode = false;
+        this.planetZoomMode = false;
+        this.zoomTransition = 0.0;
+        if (zoomAnimationTimer != null) zoomAnimationTimer.stop();
+        zoomAnimationTimer = new javax.swing.Timer(20, e -> {
+            zoomTransition += 0.02;
+            if (zoomTransition >= 1.0) {
+                zoomTransition = 1.0;
+                zoomAnimationTimer.stop();
+            }
+            repaint();
+        });
+        zoomAnimationTimer.start();
+    }
 
     public void closePlanetZoom() {
         this.planetZoomMode = false;
+        this.sunZoomMode = false;
+        this.moonZoomMode = false;
         this.zoomedPlanet = null;
         if (zoomAnimationTimer != null) zoomAnimationTimer.stop();
         repaint();
     }
 
     public void zoomToSelectedPlanet() {
-        if (selectedSearchResult != null && selectedSearchResult.source instanceof PlanetData) {
-            zoomToPlanet((PlanetData) selectedSearchResult.source);
+        if (selectedSearchResult != null) {
+            if (selectedSearchResult.source instanceof PlanetData) {
+                zoomToPlanet((PlanetData) selectedSearchResult.source);
+            } else if (selectedSearchResult.name != null && selectedSearchResult.name.equals("Sun")) {
+                zoomToSun();
+            } else if (selectedSearchResult.name != null && selectedSearchResult.name.equals("Moon")) {
+                zoomToMoon();
+            }
         }
     }
 
@@ -444,8 +510,14 @@ public class StarSpherePanel extends JPanel {
         });
 
         addMouseWheelListener(e -> {
-            fieldOfView += e.getWheelRotation() * 3;
-            fieldOfView = Math.max(20, Math.min(120, fieldOfView));
+            if (planetZoomMode || sunZoomMode || moonZoomMode) {
+                planetZoomScale *= (e.getWheelRotation() > 0) ? 0.9 : 1.1;
+                if (planetZoomScale < 0.00005) planetZoomScale = 0.00005;
+                if (planetZoomScale > 0.05) planetZoomScale = 0.05;
+            } else {
+                fieldOfView += e.getWheelRotation() * 3;
+                fieldOfView = Math.max(20, Math.min(120, fieldOfView));
+            }
             repaint();
         });
     }
@@ -461,7 +533,7 @@ public class StarSpherePanel extends JPanel {
                     case KeyEvent.VK_SPACE: viewAngleX = 0; viewAngleY = 90; fieldOfView = 60; break;
                     case KeyEvent.VK_I: break;
                     case KeyEvent.VK_ESCAPE:
-                        if (planetZoomMode) closePlanetZoom();
+                        if (planetZoomMode || sunZoomMode || moonZoomMode) closePlanetZoom();
                         break;
                 }
             }
@@ -853,6 +925,13 @@ public class StarSpherePanel extends JPanel {
         if (planetZoomMode && zoomedPlanet != null) {
             drawPlanetZoomMode(g2d, cx, cy);
         }
+        if (sunZoomMode) {
+            drawSunZoomMode(g2d, cx, cy);
+        }
+        if (moonZoomMode) {
+            drawMoonZoomMode(g2d, cx, cy);
+        }
+
 
         drawInfoPanel(g2d);
 
@@ -1003,6 +1082,27 @@ public class StarSpherePanel extends JPanel {
                     MessierObject obj = entry.getKey();
                     selectedObjectName = String.format("M%d: %s (%s, %.1fm)",
                             obj.getNumber(), obj.getName(), obj.getType(), obj.getMagnitude());
+                    selectedSearchResult = new SearchableObject("M" + obj.getNumber() + " " + obj.getName(), "Messier", obj.getRa(), obj.getDec(), obj);
+                    if (messageTimer.isRunning()) messageTimer.stop();
+                    messageTimer.start();
+                    repaint();
+                    return;
+                }
+            }
+        }
+        for (Map.Entry<HygStar, double[]> entry : starPositions.entrySet()) {
+            double[] pos = entry.getValue();
+            if (pos != null) {
+                double dx = mouseX - pos[0];
+                double dy = mouseY - pos[1];
+                if (Math.hypot(dx, dy) < 8) {
+                    HygStar star = entry.getKey();
+                    selectedObjectName = String.format("%s (%.2fm)",
+                            star.getName() != null && !star.getName().isEmpty() ? star.getName() : "Star",
+                            star.getMag());
+                    selectedSearchResult = new SearchableObject(
+                            star.getName() != null && !star.getName().isEmpty() ? star.getName() : "Star " + star.getId(),
+                            "Star", star.getRa(), star.getDec(), star);
                     if (messageTimer.isRunning()) messageTimer.stop();
                     messageTimer.start();
                     repaint();
@@ -1257,60 +1357,59 @@ public class StarSpherePanel extends JPanel {
     }
 
     private void drawPlanetZoomMode(Graphics2D g2d, int cx, int cy) {
-        int alpha = (int) (200 * zoomTransition);
+        int alpha = (int) (600 * zoomTransition);
+        if (alpha > 255) alpha = 255;
         g2d.setColor(new Color(0, 0, 0, alpha));
         g2d.fillRect(0, 0, getWidth(), getHeight());
 
         double planetRadiusKm = zoomedPlanet.getRadius();
         java.util.List<MoonData> moons = getMoons(zoomedPlanet.getName());
 
-        double scale = 0.0005;
-
-        int planetSize = (int) (planetRadiusKm * 2 * scale * zoomTransition);
+        int planetSize = (int) (planetRadiusKm * 2 * planetZoomScale * zoomTransition);
         if (planetSize < 10) planetSize = 10;
 
         int px = cx - planetSize / 2;
         int py = cy - planetSize / 2;
 
-        if (zoomTransition > 0.5) {
-            RadialGradientPaint glow = new RadialGradientPaint(
-                    cx, cy, planetSize,
-                    new float[]{0f, 0.7f, 1f},
-                    new Color[]{
-                            new Color(zoomedPlanet.getColor().getRed(), zoomedPlanet.getColor().getGreen(), zoomedPlanet.getColor().getBlue(), 100),
-                            new Color(zoomedPlanet.getColor().getRed(), zoomedPlanet.getColor().getGreen(), zoomedPlanet.getColor().getBlue(), 50),
-                            new Color(0, 0, 0, 0)
-                    }
-            );
-            g2d.setPaint(glow);
-            g2d.fillOval(px - 30, py - 30, planetSize + 60, planetSize + 60);
-        }
 
         g2d.setColor(zoomedPlanet.getColor());
         g2d.fillOval(px, py, planetSize, planetSize);
 
         if (zoomedPlanet.getName().equals("Saturn")) {
+            double ringInner = planetRadiusKm * 1.4 * planetZoomScale;
+            double ringOuter = planetRadiusKm * 2.3 * planetZoomScale;
+            int ringX = (int)(cx - ringOuter);
+            int ringY = (int)(cy - ringOuter * 0.25);
+            int ringW = (int)(ringOuter * 2);
+            int ringH = (int)(ringOuter * 0.5);
+
             g2d.setColor(new Color(210, 180, 120, 150));
             g2d.setStroke(new BasicStroke(3));
-            g2d.drawOval(px - 20, py + planetSize/3, planetSize + 40, planetSize/3);
-            g2d.drawOval(px - 30, py + planetSize/3 - 5, planetSize + 60, planetSize/3 + 10);
+            g2d.drawOval(ringX, ringY, ringW, ringH);
+
+            ringInner = planetRadiusKm * 1.6 * planetZoomScale;
+            ringOuter = planetRadiusKm * 2.1 * planetZoomScale;
+            ringX = (int)(cx - ringOuter);
+            ringY = (int)(cy - ringOuter * 0.3);
+            ringW = (int)(ringOuter * 2);
+            ringH = (int)(ringOuter * 0.6);
+
+            g2d.drawOval(ringX, ringY, ringW, ringH);
         }
 
         if (zoomTransition > 0.6) {
-            long currentTime = System.currentTimeMillis();
-            double timeStep = (currentTime - lastMoonUpdateTime) / 1000.0;
-            lastMoonUpdateTime = currentTime;
-
             for (MoonData moon : moons) {
-                moon.setAngle(moon.getAngle() + moon.getOrbitalSpeed() * timeStep);
+                double orbitalPeriodSeconds = moon.getOrbitalPeriodDays() * 24 * 3600;
+                double anglePerSecond = 2 * Math.PI / orbitalPeriodSeconds;
+                double timeSeconds = (getCurrentJD() - 2451545.0) * 24 * 3600;
+                double angle = (timeSeconds * anglePerSecond) % (2 * Math.PI);
+                moon.setAngle(angle);
 
-                double orbitPx = moon.getOrbitRadiusKm() * scale;
-                double moonRadiusPx = Math.max(2, moon.getRadiusKm() * scale);
+                double orbitPx = moon.getOrbitRadiusKm() * planetZoomScale;
+                double moonRadiusPx = Math.max(2, moon.getRadiusKm() * planetZoomScale);
 
-                int moonX = (int)(cx + Math.cos(moon.getAngle()) * orbitPx);
-                int moonY = (int)(cy + Math.sin(moon.getAngle()) * orbitPx * 0.5);
-
-                if (moonY > cy + planetSize / 2.0) continue;
+                int moonX = (int)(cx + Math.cos(angle) * orbitPx);
+                int moonY = (int)(cy + Math.sin(angle) * orbitPx * 0.5);
 
                 g2d.setColor(Color.LIGHT_GRAY);
                 int moonDrawSize = (int)(moonRadiusPx * 2);
@@ -1320,6 +1419,41 @@ public class StarSpherePanel extends JPanel {
                 g2d.drawString(moon.getName(), moonX + moonDrawSize/2 + 2, moonY);
             }
         }
+    }
+
+    private void drawSunZoomMode(Graphics2D g2d, int cx, int cy) {
+        int alpha = (int) (600 * zoomTransition);
+        if (alpha > 255) alpha = 255;
+        g2d.setColor(new Color(0, 0, 0, alpha));
+        g2d.fillRect(0, 0, getWidth(), getHeight());
+        double sunRadiusKm = 696340;
+        int sunSize = (int) (sunRadiusKm * 2 * planetZoomScale * zoomTransition);
+        if (sunSize < 20) sunSize = 20;
+        int px = cx - sunSize / 2;
+        int py = cy - sunSize / 2;
+        g2d.setColor(new Color(255, 240, 100));
+        g2d.fillOval(px, py, sunSize, sunSize);
+    }
+
+    private void drawMoonZoomMode(Graphics2D g2d, int cx, int cy) {
+        int alpha = (int) (600 * zoomTransition);
+        if (alpha > 255) alpha = 255;
+        g2d.setColor(new Color(0, 0, 0, alpha));
+        g2d.fillRect(0, 0, getWidth(), getHeight());
+        double moonRadiusKm = 1737;
+        int moonSize = (int) (moonRadiusKm * 2 * planetZoomScale * zoomTransition);
+        if (moonSize < 20) moonSize = 20;
+        int px = cx - moonSize / 2;
+        int py = cy - moonSize / 2;
+        g2d.setColor(new Color(220, 220, 220));
+        g2d.fillOval(px, py, moonSize, moonSize);
+        if (moonIllumination < 0.99 && moonIllumination > 0.01) {
+            int shadowWidth = (int)(moonSize * (1 - moonIllumination));
+            g2d.setColor(new Color(30, 30, 40));
+            g2d.fillOval(px + moonSize - shadowWidth, py, shadowWidth, moonSize);
+        }
+        g2d.setColor(Color.WHITE);
+        g2d.drawOval(px, py, moonSize, moonSize);
     }
 
     private java.util.List<MoonData> getMoons(String planetName) {
@@ -1383,28 +1517,38 @@ public class StarSpherePanel extends JPanel {
         if (moons.isEmpty()) return;
 
         double planetRadiusKm = zoomedPlanet.getRadius();
-        double scale = (planetSize * 0.5) / planetRadiusKm;
 
-        long currentTime = System.currentTimeMillis();
-        double timeStep = (currentTime - lastMoonUpdateTime) / 1000.0;
-        lastMoonUpdateTime = currentTime;
+        double maxOrbitKm = planetRadiusKm * 2;
+        for (MoonData moon : moons) {
+            if (moon.getOrbitRadiusKm() > maxOrbitKm) {
+                maxOrbitKm = moon.getOrbitRadiusKm();
+            }
+        }
+
+        int maxOrbitPx = Math.min(getWidth(), getHeight()) / 3;
+        double scale = maxOrbitPx / maxOrbitKm;
 
         for (MoonData moon : moons) {
-            moon.setAngle(moon.getAngle() + moon.getOrbitalSpeed() * timeStep);
+            double orbitalPeriodSeconds = moon.getOrbitalPeriodDays() * 24 * 3600;
+            double anglePerSecond = 2 * Math.PI / orbitalPeriodSeconds;
+            double timeSeconds = (getCurrentJD() - 2451545.0) * 24 * 3600;
+            double angle = (timeSeconds * anglePerSecond) % (2 * Math.PI);
+            moon.setAngle(angle);
 
             double orbitPx = moon.getOrbitRadiusKm() * scale;
-            double moonRadiusPx = Math.max(2, moon.getRadiusKm() * scale);
+            double moonRadiusPx = Math.max(2, moon.getRadiusKm() * scale + 1);
 
-            int moonX = (int)(cx + Math.cos(moon.getAngle()) * orbitPx);
-            int moonY = (int)(cy + Math.sin(moon.getAngle()) * orbitPx * 0.5);
+            int moonX = (int)(cx + Math.cos(angle) * orbitPx);
+            int moonY = (int)(cy + Math.sin(angle) * orbitPx * 0.5);
 
             if (moonY > cy + planetSize / 2.0) continue;
 
             g2d.setColor(Color.LIGHT_GRAY);
             int moonDrawSize = (int)(moonRadiusPx * 2);
-            g2d.fillOval(moonX - (int)moonRadiusPx, moonY - (int)moonRadiusPx, moonDrawSize, moonDrawSize);
+            if (moonDrawSize < 4) moonDrawSize = 4;
+            g2d.fillOval(moonX - moonDrawSize/2, moonY - moonDrawSize/2, moonDrawSize, moonDrawSize);
             g2d.setColor(Color.WHITE);
-            g2d.drawString(moon.getName(), moonX + (int)moonRadiusPx + 2, moonY);
+            g2d.drawString(moon.getName(), moonX + moonDrawSize/2 + 2, moonY);
         }
     }
 

@@ -23,7 +23,7 @@ public class CosmoComputerApp {
     private static javax.swing.Timer suggestionTimer;
     private static JTextArea infoArea;
     private static JLabel messierImageLabel;
-
+    private static String lastInfoText = "";
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
@@ -52,6 +52,15 @@ public class CosmoComputerApp {
                 updateTimeControlDisplay();
                 starPanel.repaint();
             });
+            Timer clickInfoTimer = new Timer(500, e -> {
+                String newText = starPanel.getSelectedObjectInfo();
+                if (!newText.equals(lastInfoText)) {
+                    lastInfoText = newText;
+                    infoArea.setText(newText);
+                    updateMessierImage();
+                }
+            });
+            clickInfoTimer.start();
             timer.start();
         });
     }
@@ -123,6 +132,19 @@ public class CosmoComputerApp {
                     searchField.setText("");
                     listModel.clear();
                     updateInfoCard();
+                    starPanel.zoomToSelectedPlanet();
+                }
+            }
+        });
+
+        suggestionList.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 1 && suggestionList.getSelectedIndex() >= 0) {
+                    starPanel.selectSearchResult(suggestionList.getSelectedIndex());
+                    searchField.setText("");
+                    listModel.clear();
+                    updateInfoCard();
+                    starPanel.zoomToSelectedPlanet();
                 }
             }
         });
